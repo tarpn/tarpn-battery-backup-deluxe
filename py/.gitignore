@@ -1,0 +1,4 @@
+.twine.env
+dist
+venv
+tarpn_bbd.egg-info

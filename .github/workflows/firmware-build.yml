@@ -1,0 +1,46 @@
+name: 'Build firmware'
+on: 
+  push:
+    branches: ['main']
+    paths: 
+      - 'firmware/**'
+      - '!firmware/Makefile'
+  workflow_dispatch:
+
+jobs: 
+  build_firmware:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+      - uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          packages: avrdude
+          version: 1.0
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10' 
+      - name: 'Install PlatformIO'
+        run: pip install -U setuptools_scm platformio
+      - name: 'Build firmware with PlatformIO'
+        run: |
+         cd firmware
+         pio run -e ATmega328P_RPi
+      - name: 'Get variables for workflow'
+        id: vars
+        run: |
+          echo "Git version: "
+          git -v
+          echo "Git tags: "
+          git tag -l
+          cd firmware
+          FIRMWARE_NAME=$(python setup.py --version)
+          echo $FIRMWARE_NAME
+          echo "FIRMWARE_VERSIONED_NAME=$FIRMWARE_NAME" >> $GITHUB_OUTPUT
+      - name: 'Archive firmware'
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{steps.vars.outputs.FIRMWARE_VERSIONED_NAME}}.hex
+          path: firmware/.pio/build/ATmega328P_RPi/firmware.hex

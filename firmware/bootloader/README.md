@@ -1,0 +1,5 @@
+Built from optiboot at revision 55d1e6b36922
+
+```
+make clean AVR_FREQ=8000000 BAUD_RATE=38400 LED=D7 LED_START_FLASHES=3 LED_DATA_FLASH=1 UART=0 TIMEOUT=4 atmega328
+```

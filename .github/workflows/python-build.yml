@@ -1,0 +1,32 @@
+name: 'Build Python'
+on: 
+  push:
+    branches: ['main']
+    paths: 
+      - 'py/**'
+      - '!py/Makefile'
+  workflow_dispatch:
+
+jobs: 
+  build_python_package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10' 
+      - name: 'Install Python dependencies'
+        run: pip install twine wheel
+      - name: 'Build Python module'
+        run: |
+         cd py
+         python setup.py egg_info sdist
+         pip wheel --no-index --no-deps --wheel-dir dist dist/*.tar.gz
+         ls dist/*
+      - name: 'Archive build artifacts'
+        uses: actions/upload-artifact@v3
+        with:
+          path: py/dist/*
