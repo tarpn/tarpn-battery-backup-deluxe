@@ -32,7 +32,7 @@
 //#define BATTERY_LOW_VOLTAGE_SHUTDOWN  10.0    // At this voltage, the system will shutdown the RPI (TODO sleep?)
 #define BATTERY_HIGH_VOLTAGE_TRIP_MS  10
 #define BATTERY_LOW_VOLTAGE_TRIP_MS   3000
-#define BATTERY_RECOVERY_TRIP_MS      10000
+#define BATTERY_RECOVERY_MS           10000
 #define OVER_TEMP_CUTOFF              60      // At this temperature in celcius, disconnect battery
 #define OVER_TEMP_RECOVERY            50      // 
 #define OVER_TEMP_RECOVERY_MS         10000   // 
@@ -43,8 +43,6 @@
 #define VOLTAGE_FACTOR        0.167   // For 10k 49.9k resistor divider use 0.167. For 10k 100k, use 0.091
 #define CURRENT_FACTOR        0.1204  // Shunt resistor value times gain factor (0.003 * 40 = 0.120)
 #define CURRENT_OFFSET        2.400   // Op amp uses a 2.4V reference to allow for negative voltages
-
-// TODO add limits to StatefulConfigs
 
 struct StatefulConfigs {
   // Tunables
@@ -62,9 +60,9 @@ struct StatefulConfigs {
   float batt_low_voltage_recovery;
   float batt_low_voltage_trip_ms;
   float batt_recovery_ms;
-  //float overtemp_cutoff;
-  //float overtemp_recovery;
-  //float overtime_recovery_ms;
+  float overtemp_cutoff;
+  float overtemp_recovery;
+  float overtemp_recovery_ms;
 
 } config_defaults = {
   ADC_ZENER_VOLTAGE, 
@@ -79,10 +77,10 @@ struct StatefulConfigs {
   BATTERY_LOW_VOLTAGE_CUTOFF,
   BATTERY_LOW_VOLTAGE_RECOVERY,
   BATTERY_LOW_VOLTAGE_TRIP_MS,
-  BATTERY_RECOVERY_TRIP_MS
-  //OVER_TEMP_CUTOFF,
-  //OVER_TEMP_RECOVERY,
-  //OVER_TEMP_RECOVERY_MS
+  BATTERY_RECOVERY_MS,
+  OVER_TEMP_CUTOFF,
+  OVER_TEMP_RECOVERY,
+  OVER_TEMP_RECOVERY_MS
 };
 
 StatefulConfigs configs;
@@ -100,6 +98,17 @@ enum State {
   OverTempRecovery  // 9
 };
 
+enum Messages {
+  NoMessage,
+  ReverseCurrentMessage,
+  LowSupplyVoltageMessage,
+  LowBatteryVoltageMessage,
+  HighBatteryVoltageMessage,
+  OverTempMessage,
+  EEPROMSavedMessage,
+  EEPROMResetMessage
+};
+
 enum UserEvent {
   NONE,
   BUTTON_PRESS,
@@ -108,40 +117,98 @@ enum UserEvent {
   SCROLL_LEFT
 };
 
-char * labels[] = {
-  "Battery Voltage",
-  "Supply Voltage",
-  "Battery Current",
-  "Temperature" 
+const char label_0[] PROGMEM = "Battery Voltage";
+const char label_1[] PROGMEM = "Supply Voltage";
+const char label_2[] PROGMEM = "Battery Current";
+const char label_3[] PROGMEM = "Temperature";
+const char* const labels[] PROGMEM = {label_0, label_1, label_2, label_3};
+char label_buffer[16];
+
+
+float ONE = 1.0;
+struct VoltageRead * batteryVoltage = new VoltageRead(&(configs.reference_voltage), &(configs.voltage_factor));
+struct VoltageRead * supplyVoltage = new VoltageRead(&(configs.reference_voltage),  &(configs.voltage_factor));
+struct VoltageRead * tempSense = new VoltageRead(&(configs.reference_voltage), &ONE);
+struct VoltageRead * currentSense = new VoltageRead(&(configs.reference_voltage), &(configs.current_factor), &(configs.current_offset));
+
+/**
+ * A nicely packed structure for storing the configurations in the EEPROM.
+ * All values are scaled up by 1000 (except timing values) and stored as 16-bit unsigned ints.
+*/
+struct PackedConfig {
+  uint16_t reference_voltage;
+  uint16_t voltage_factor;
+  uint16_t current_factor;
+  uint16_t current_offset;  
+  uint16_t standby_voltage;
+  uint16_t batt_high_voltage_cutoff;
+  uint16_t batt_high_voltage_recovery;
+  uint16_t batt_high_voltage_trip_ms;
+  uint16_t batt_low_voltage_cutoff;
+  uint16_t batt_low_voltage_recovery;
+  uint16_t batt_low_voltage_trip_ms;
+  uint16_t batt_recovery_ms;
+  uint16_t overtemp_cutoff;
+  uint16_t overtemp_recovery;
+  uint16_t overtemp_recovery_ms;
 };
 
-struct VoltageRead * batteryVoltage = new VoltageRead(ADC_ZENER_VOLTAGE, VOLTAGE_FACTOR);
-struct VoltageRead * supplyVoltage = new VoltageRead(ADC_ZENER_VOLTAGE, VOLTAGE_FACTOR);
-struct VoltageRead * tempSense = new VoltageRead(ADC_ZENER_VOLTAGE, 1.0);
-struct VoltageRead * currentSense = new VoltageRead(ADC_ZENER_VOLTAGE, CURRENT_FACTOR, CURRENT_OFFSET);
+void toPackedConfig(StatefulConfigs * configs, PackedConfig * packed) {
+  packed->reference_voltage = configs->reference_voltage * 1000;
+  packed->voltage_factor = configs->voltage_factor * 1000;
+  packed->current_factor = configs->current_factor * 1000;
+  packed->current_offset = configs->current_offset * 1000;
+  packed->standby_voltage = configs->standby_voltage * 1000;
+  packed->batt_high_voltage_cutoff = configs->batt_high_voltage_cutoff * 1000;
+  packed->batt_high_voltage_recovery = configs->batt_high_voltage_recovery * 1000;
+  packed->batt_high_voltage_trip_ms = configs->batt_high_voltage_trip_ms;
+  packed->batt_low_voltage_cutoff = configs->batt_low_voltage_cutoff * 1000;
+  packed->batt_low_voltage_recovery = configs->batt_low_voltage_recovery * 1000;
+  packed->batt_low_voltage_trip_ms = configs->batt_low_voltage_trip_ms;
+  packed->batt_recovery_ms = configs->batt_recovery_ms;
+  packed->overtemp_cutoff = configs->overtemp_cutoff;
+  packed->overtemp_recovery = configs->overtemp_recovery;
+  packed->overtemp_recovery_ms = configs->overtemp_recovery_ms;
+}
+
+void fromPackedConfig(StatefulConfigs * configs, PackedConfig * packed) {
+  configs->reference_voltage = packed->reference_voltage / 1000.0;
+  configs->voltage_factor = packed->voltage_factor / 1000.0;
+  configs->current_factor = packed->current_factor / 1000.0;
+  configs->current_offset = packed->current_offset / 1000.0;
+  configs->standby_voltage = packed->standby_voltage / 1000.0;
+  configs->batt_high_voltage_cutoff = packed->batt_high_voltage_cutoff / 1000.0;
+  configs->batt_high_voltage_recovery = packed->batt_high_voltage_recovery / 1000.0;
+  configs->batt_high_voltage_trip_ms = packed->batt_high_voltage_trip_ms;
+  configs->batt_low_voltage_cutoff = packed->batt_low_voltage_cutoff / 1000.0;
+  configs->batt_low_voltage_recovery = packed->batt_low_voltage_recovery / 1000.0;
+  configs->batt_low_voltage_trip_ms = packed->batt_low_voltage_trip_ms;
+  configs->batt_recovery_ms = packed->batt_recovery_ms;
+  configs->overtemp_cutoff = packed->overtemp_cutoff;
+  configs->overtemp_recovery = packed->overtemp_recovery;
+  configs->overtemp_recovery_ms = packed->overtemp_recovery_ms;
+}
 
 void save_config() {
-  EEPROM.put(1, configs);
-  batteryVoltage->factor = configs.voltage_factor;
-  supplyVoltage->factor = configs.voltage_factor;
-  currentSense->factor = configs.current_factor;
-  currentSense->offset = configs.current_offset;
+  PackedConfig to_store;
+  toPackedConfig(&configs, &to_store);
+  EEPROM.put(1, to_store);
 }
 
 void reset_config() {
-  for (int i = 0 ; i < EEPROM.length() ; i++) {
-    EEPROM.write(i, 0);
+  for (uint16_t i = 0 ; i < EEPROM.length() ; i++) {
+    EEPROM.update(i, 0);
   }
-
-  EEPROM.put(1, config_defaults);
+  EEPROM.update(0x00, 1);
+  PackedConfig to_store;
+  toPackedConfig(&config_defaults, &to_store);
+  EEPROM.put(1, to_store);
 }
 
 void load_config() {
-  EEPROM.get(1, configs);
-  batteryVoltage->factor = configs.voltage_factor;
-  supplyVoltage->factor = configs.voltage_factor;
-  currentSense->factor = configs.current_factor;
-  currentSense->offset = configs.current_offset;
+  PackedConfig packed;
+  EEPROM.get(1, packed);
+  fromPackedConfig(&configs, &packed);
 }
 
 long start_time;
@@ -162,7 +229,7 @@ long next_display_change;
 bool config_mode_enabled = false;
 bool long_press_captured = false;
 uint8_t display_choice = 0;
-int error_code = -1;
+Messages error_code = NoMessage;
 long last_error_display = 0;
 
 long last_blink_off = -1; // if not -1, flash off
@@ -192,6 +259,8 @@ boolean do_blink(long now) {
     } 
     return true;
   }
+
+  return false;
 }
 
 void read_voltage(uint8_t pin, VoltageRead * read) {
@@ -238,6 +307,7 @@ State next_state(long now, double temp, State state) {
       temp >= OVER_TEMP_CUTOFF) {
     // Over temp logic applies to most states, so do it separately.
     last_state_change = now;
+    error_code = OverTempMessage;
     return OverTemp;
   }
 
@@ -256,16 +326,20 @@ State next_state(long now, double temp, State state) {
     break;
   case Standby:
     if (supplyVoltage->instantValue() < STANDBY_LOW_VOLTAGE) {
+      error_code = LowSupplyVoltageMessage;
       next_state = Backup;
     }
     break;
   case Backup:
     if (batteryVoltage->smoothedValueSlow() < BATTERY_LOW_VOLTAGE_CUTOFF) {
+      error_code = LowBatteryVoltageMessage;
       next_state = BatteryLow;
     } else if (batteryVoltage->smoothedValueSlow() >= BATTERY_HIGH_VOLTAGE_CUTOFF) {
+      error_code = HighBatteryVoltageMessage;
       next_state = BatteryHigh;
     } else if (currentSense->smoothedValueFast() < -0.5) {
       // More then 0.5 amps of current flowing from supply to battery
+      error_code = ReverseCurrentMessage;
       next_state = Standby;
     }
     break;
@@ -351,58 +425,92 @@ void display_info(long now, UserEvent event) {
   display.setTextColor(SSD1306_WHITE);
   display.setCursor(0, 0);
   display.setTextSize(1);
-  display.print("TARPN BBD  ");
+  display.print(F("TARPN BBD  "));
   display.println(uptime_sec);
-  display.println("David Arthur, K4DBZ");
+  display.println(F("David Arthur, K4DBZ"));
   display.println(BUILD_DATE);
   display.print(GIT_REV);
   display.display();
 }
 
-struct ConfigDisplay {
-  char * name;
-  char * label_1;
-  char * label_2;
+// These are allocated in SRAM since they need reference to global objects
+struct DynamicConfig {
   float * value;
-  int8_t hi;  // highest power of 10 to change
-  int8_t lo;  // lowest power of 10 to change
-  uint8_t decimal_places;  // digits after decimal
   VoltageRead * derived;
 };
 
-#define NUM_CONFIGS 6
+// These are stored in Flash RAM (PROGMEM)
+struct StaticConfig {
+  const char name[3];
+  const char label_1[20];
+  const char label_2[20];
+  int8_t hi;  // highest power of 10 to change
+  int8_t lo;  // lowest power of 10 to change
+  uint8_t decimal_places;  // digits after decimal
+} staticConfigSRAM {"", "", "", 0, 0, 0};
+
+#define NUM_CONFIGS 11
 #define NUM_TUNABLES 2
 
-float foo = 12.5;
-
-struct ConfigDisplay configurables[NUM_CONFIGS] = {
-  {"H1", "Battery High", "Voltage Cutoff", &(configs.batt_high_voltage_cutoff), 0, -1, 1, NULL},
-  {"H2", "Battery High", "Voltage Recovery", &(configs.batt_high_voltage_recovery), 0, -1, 1, NULL},
-  {"H3", "Battery High", "Trip Time ms", &(configs.batt_high_voltage_trip_ms), 3, 0, 0, NULL},
-  {"L1", "Battery Low", "Voltage Cutoff", &(configs.batt_low_voltage_cutoff), 0, -2, 2, NULL},
-  {"L2", "Battery Low", "Voltage Recovery", &(configs.batt_low_voltage_recovery), 0, -2, 2, NULL},
-  {"L3", "Battery Low", "Trip Time ms", &(configs.batt_low_voltage_trip_ms), 3, 0, 0, NULL}
-  //{"R1", "Battery", "Recovery ms", &(configs.batt_recovery_ms), 3, 0, 0, NULL},
-  //{"T1", "Temperature", "Cutoff Temp", &(configs.overtemp_cutoff), 2, 1, 1, NULL},
-  //{"T2", "Temperature", "Recovery Temp", &(configs.overtemp_recovery), 2, 1, 1, NULL},
-  //{"T3", "Temperature", "Recovery Time ms", &(configs.overtime_recovery_ms), 3, 0, 0, NULL}
+struct DynamicConfig dynamicConfigs[NUM_CONFIGS + NUM_TUNABLES] = {
+  {&(configs.standby_voltage), NULL},
+  {&(configs.batt_recovery_ms), NULL},
+  {&(configs.batt_high_voltage_cutoff), NULL},
+  {&(configs.batt_high_voltage_recovery), NULL},
+  {&(configs.batt_high_voltage_trip_ms), NULL},
+  {&(configs.batt_low_voltage_cutoff), NULL},
+  {&(configs.batt_low_voltage_recovery), NULL},
+  {&(configs.batt_low_voltage_trip_ms), NULL},
+  {&(configs.overtemp_cutoff), NULL},
+  {&(configs.overtemp_recovery), NULL},
+  {&(configs.overtemp_recovery_ms), NULL},
+  {&(configs.current_factor), currentSense},
+  {&(configs.current_offset), currentSense}
 };
 
-struct ConfigDisplay tunables[2] = {
-  {"X1", "Current Sense", "", &(configs.current_factor), -1, -3, 3, currentSense},
-  {"X2", "Current Offset", "", &(configs.current_offset), 0, -2, 2, currentSense},
+const struct StaticConfig staticConfigs[NUM_CONFIGS + NUM_TUNABLES] PROGMEM = {
+  {"B1", "Battery", "Standby Voltage", 0, -1, 1},
+  {"B2", "Battery", "Recovery ms", 3, 0, 0},
+  {"H1", "Battery High", "Voltage Cutoff", 0, -1, 1},
+  {"H2", "Battery High", "Voltage Recovery", 0, -1, 1},
+  {"H2", "Battery High", "Trip Time ms", 3, 0, 0},
+  {"L1", "Battery Low", "Voltage Cutoff", 0, -1, 1},
+  {"L2", "Battery Low", "Voltage Recovery", 0, -1, 1},
+  {"L3", "Battery Low", "Trip Time ms", 2, 0, 0},
+  {"T1", "Temperature", "Cutoff Temp", 1, -1, 1},
+  {"T2", "Temperature", "Recovery Temp", 1, -1, 1},
+  {"T3", "Temperature", "Recovery Time ms", 3, 0, 0},
+  {"X1", "Current Sense", "", -1, -3, 3},
+  {"X2", "Current Offset", "", 0, -2, 2}
 };
 
-void adjust_set_levels(long now, UserEvent event, ConfigDisplay * choices, uint8_t choices_len) {  
+char float_buffer[10];
+void display_float(float value, uint8_t width, uint8_t precision) {
+  dtostrf(value, width, precision, float_buffer);
+  display.print(float_buffer);
+}
+
+DynamicConfig dynamicConfig;
+void adjust_set_levels(long now, UserEvent event, bool levelsOrTune, uint8_t choices_len) {  
   // For each config, need the display string, valid units to cycle through, and location
   // of digit to flash.
 
-  ConfigDisplay configDisplay = choices[config_selection_1];
-  uint8_t digit_idx = config_selection_2 % (1 + configDisplay.hi - configDisplay.lo);
-  // exponent is 2 => 100, 1 => 10, 0 => 1, -1 => 0.1, -2 => 0.01
-  int8_t exponent = (configDisplay.hi - digit_idx);
+  // Select the correct DynamicConfig and load the StaticConfig from PROGMEM
+  if (levelsOrTune) {
+    // Set Levels
+    dynamicConfig = dynamicConfigs[config_selection_1];
+    memcpy_P(&staticConfigSRAM, &staticConfigs[config_selection_1], sizeof(StaticConfig));
+  } else {
+    // Tune
+    dynamicConfig = dynamicConfigs[NUM_CONFIGS + config_selection_1];
+    memcpy_P(&staticConfigSRAM, &staticConfigs[NUM_CONFIGS + config_selection_1], sizeof(StaticConfig));
+  }
+
+  uint8_t digit_choices = 1 + staticConfigSRAM.hi - staticConfigSRAM.lo;
+  uint8_t digit_idx = config_selection_2 % digit_choices;
+  int8_t exponent = (staticConfigSRAM.hi - digit_idx);
   double adj = pow(10.0, exponent);
-  double val = *(configDisplay.value);
+  double val = *(dynamicConfig.value);
 
   if (event == SCROLL_LEFT) {
     val -= adj;
@@ -410,10 +518,10 @@ void adjust_set_levels(long now, UserEvent event, ConfigDisplay * choices, uint8
   if (event == SCROLL_RIGHT) {
     val += adj;
   }
-  *(configDisplay.value) = val;
+  *(dynamicConfig.value) = val;
 
   if (event == BUTTON_PRESS) {
-    if (config_selection_2 == 2) {
+    if (config_selection_2 == (digit_choices - 1)) {
       config_selection_2 = 0;
       config_depth = 1;
     } else {
@@ -424,58 +532,40 @@ void adjust_set_levels(long now, UserEvent event, ConfigDisplay * choices, uint8
 
   display.clearDisplay();
   display.setCursor(0, 0);
-  display.print(configDisplay.name);
-  display.print(" "); 
-  display.print(val, configDisplay.decimal_places);
+  display.print(staticConfigSRAM.name);
+  display.print(F(" ")); 
+  display_float(val, 5, staticConfigSRAM.decimal_places);
+  uint8_t blink_pos;
   if (!do_blink(now)) {
-    uint8_t base = 36;
-    if (val < 0) {
-      base += 12;
+    uint8_t last_place = 84; // width is 5 characters (60px), right aligned
+    blink_pos = last_place - (exponent * 12);
+    if (staticConfigSRAM.decimal_places > 0) {
+      blink_pos -= (12 + 12 * staticConfigSRAM.decimal_places);
     }
-    // TODO deal with negative sign
-    if (val >= 10.0) {
-      // two digits before decimal
-      if (exponent == 1) {
-        display.fillRect(base, 0, 12, 16, SSD1306_BLACK);
-      } else if (exponent == 0) {
-        display.fillRect(base + 12, 0, 12, 16, SSD1306_BLACK);
-      } else if (exponent == -1) {
-        display.fillRect(base + 36, 0, 12, 16, SSD1306_BLACK);
-      } else if (exponent == -2) {
-        display.fillRect(base + 48, 0, 12, 16, SSD1306_BLACK);
-      }
-    } else {
-      // one digit (or zero) before decimal
-      if (exponent == 0) {
-        display.fillRect(base, 0, 12, 16, SSD1306_BLACK);
-      } else if (exponent == -1) {
-        display.fillRect(base + 24, 0, 12, 16, SSD1306_BLACK);
-      } else if (exponent == -2) {
-        display.fillRect(base + 36, 0, 12, 16, SSD1306_BLACK);
-      } else if (exponent == -3) {
-        display.fillRect(base + 48, 0, 12, 16, SSD1306_BLACK);
-      }
+    if (exponent < 0) {
+      blink_pos += 12;
     }
+    display.fillRect(blink_pos, 0, 12, 16, SSD1306_BLACK);
   }
   display.setCursor(108, 0);
   display.print((char) 0x1B); // <- arrow
   display.setCursor(0, 16);
   display.setTextSize(1);
-  display.println(configDisplay.label_1);
-  display.println(configDisplay.label_2);
-  if (configDisplay.derived != NULL) {
-    double derived = configDisplay.derived->smoothedValueFast();
+  display.println(staticConfigSRAM.label_1);
+  display.println(staticConfigSRAM.label_2);
+  if (dynamicConfig.derived != NULL) {
+    double derived = dynamicConfig.derived->smoothedValueFast();
     if (derived < 0.0) {
       display.setCursor(74, 24);
     } else {
       display.setCursor(80, 24);
     }
-    display.print(derived);
+    display_float(derived, 4, 2);
   }
   display.display();
 }
 
-void display_set_levels(long now, UserEvent event, ConfigDisplay * choices, uint8_t choices_len) {
+void display_set_levels(long now, UserEvent event, bool levelsOrTune, uint8_t choices_len) {
   if (event == SCROLL_RIGHT) {
     cycle_selection(&config_selection_1, choices_len + 1, true);
   }
@@ -497,34 +587,44 @@ void display_set_levels(long now, UserEvent event, ConfigDisplay * choices, uint
     display.clearDisplay();
     display.setTextSize(2);
     display.setCursor(0, 0);
-    display.print("Return");
+    display.print(F("Return"));
     display.drawBitmap(80, 0, return_glyph, 12, 18, WHITE);
     display.display();
     return;
   }
 
-  ConfigDisplay configDisplay = choices[config_selection_1];
+  // Select the correct DynamicConfig and load the StaticConfig from PROGMEM
+  DynamicConfig dynamicConfig;
+  if (levelsOrTune) {
+    // Set Levels
+    dynamicConfig = dynamicConfigs[config_selection_1];
+    memcpy_P(&staticConfigSRAM, &staticConfigs[config_selection_1], sizeof(StaticConfig));
+  } else {
+    // Tune
+    dynamicConfig = dynamicConfigs[NUM_CONFIGS + config_selection_1];
+    memcpy_P(&staticConfigSRAM, &staticConfigs[NUM_CONFIGS + config_selection_1], sizeof(StaticConfig));
+  }
 
   display.clearDisplay();
   display.setTextSize(2);
   display.setCursor(0, 0);
-  display.print(configDisplay.name);
-  display.print(" "); 
-  display.print(*(configDisplay.value), configDisplay.decimal_places);
+  display.print(staticConfigSRAM.name);
+  display.print(" ");
+  display_float(*(dynamicConfig.value), 5, staticConfigSRAM.decimal_places);
   display.setCursor(108, 0);
   display.print((char) 0x12); // up/down arrow
   display.setCursor(0, 16);
   display.setTextSize(1);
-  display.println(configDisplay.label_1);
-  display.println(configDisplay.label_2);
-  if (configDisplay.derived != NULL) {
-    double derived = configDisplay.derived->smoothedValueFast();
+  display.println(staticConfigSRAM.label_1);
+  display.println(staticConfigSRAM.label_2);
+  if (dynamicConfig.derived != NULL) {
+    double derived = dynamicConfig.derived->smoothedValueFast();
     if (derived < 0.0) {
       display.setCursor(74, 24);
     } else {
       display.setCursor(80, 24);
     }
-    display.println(derived);
+    display_float(derived, 4, 2);
   }
   display.display();
 }
@@ -568,7 +668,7 @@ void display_config(long now, UserEvent event) {
   display.setTextSize(2);
   display.setCursor(0, 0);
 
-  uint8_t choices = 5;  // TODO add Save EEPROM
+  uint8_t choices = 6; 
   if (config_depth == 0) {
     if (event == SCROLL_RIGHT) {
       cycle_selection(&config_selection_0, choices, true);
@@ -579,9 +679,14 @@ void display_config(long now, UserEvent event) {
     if (event == BUTTON_PRESS) {
       switch (config_selection_0) {
         case 3:
-          reset_config();
+          save_config();
+          error_code = EEPROMSavedMessage;
           break;
         case 4:
+          reset_config();
+          error_code = EEPROMResetMessage;
+          break;
+        case 5:
           config_selection_1 = 0;
           config_mode_enabled = false;
           break;
@@ -597,22 +702,28 @@ void display_config(long now, UserEvent event) {
     display.setTextSize(2);
     switch (config_selection_0) {
       case 0:
-        display.println("Set Limits");
+        display.println(F("Set Limits"));
         break;
       case 1:
-        display.println("Tune");
+        display.println(F("Tune"));
         break;
       case 2:
-        display.println("Info");
+        display.println(F("Info"));
         break;
       case 3:
         display.setCursor(4, 0);
-        display.print("Reset");
+        display.print(F("Save"));
         display.setCursor(4, 16);
-        display.print("EEPROM");
+        display.print(F("EEPROM"));
         break;
       case 4:
-        display.print("Return");
+        display.setCursor(4, 0);
+        display.print(F("Reset"));
+        display.setCursor(4, 16);
+        display.print(F("EEPROM"));
+        break;
+      case 5:
+        display.print(F("Return"));
         display.drawBitmap(84, 8, return_glyph, 12, 18, WHITE);
         break;
       
@@ -624,10 +735,10 @@ void display_config(long now, UserEvent event) {
   if (config_depth == 1) {
     switch (config_selection_0) {
       case 0:
-        display_set_levels(now, event, configurables, NUM_CONFIGS);
+        display_set_levels(now, event, true, NUM_CONFIGS);
         break;
       case 1:
-        display_set_levels(now, event, tunables, NUM_TUNABLES);
+        display_set_levels(now, event, false, NUM_TUNABLES);
         break;
       case 2:
         display_info(now, event);
@@ -638,36 +749,48 @@ void display_config(long now, UserEvent event) {
 
   if (config_depth == 2) {
     if (config_selection_0 == 0) {
-        adjust_set_levels(now, event, configurables, NUM_CONFIGS);
+        adjust_set_levels(now, event, true, NUM_CONFIGS);
     } else if (config_selection_0 == 1) {
-        adjust_set_levels(now, event, tunables, NUM_TUNABLES);
+        adjust_set_levels(now, event, false, NUM_TUNABLES);
     }
   }
 
 }
 
 void display_message(long now, UserEvent event) {
-  // TODO, don't clear display here, just overlay the message in a box
-  display.clearDisplay();
+  display.clearDisplay();  
   display.setTextColor(SSD1306_WHITE);
   display.setCursor(0, 0);
   display.setTextSize(2);
   switch (error_code) {
-    case 0:
-      display.println("Reverse current");
+    case ReverseCurrentMessage:
+      display.println(F("Battery\nDetected"));
       break;
-    case 1:
-      display.println("Low PSU voltage");
+    case LowSupplyVoltageMessage:
+      display.println(F("Low Supply\nVoltage"));
       break;
-    case 2:
-      display.println("Low battery voltage");
+    case LowBatteryVoltageMessage:
+      display.println(F("Battery\nUndervolt"));
       break;
-    case 3:
-      display.println("Over temp");
+    case HighBatteryVoltageMessage:
+      display.println(F("Battery\nOvervolt"));
+      break;
+    case OverTempMessage:
+      display.println(F("Over Temp"));
+      break;
+    case EEPROMSavedMessage:
+      display.println(F("EEPROM\nsaved!"));
+      break;
+    case EEPROMResetMessage:
+      display.println(F("EEPROM\nreset!"));
+      break;
+    default:
+      display.print(F("Message "));
+      display.println(error_code);
       break;
   }
   display.display();
-  error_code = -1;
+  error_code = NoMessage;
 }
 
 
@@ -719,39 +842,40 @@ void display_main(long now, UserEvent event) {
   } else {
     display.print(display_voltage->smoothedValueSlow(), 2);
   }
+
   display.setTextSize(1);
   display.setCursor(0, 24);
-  display.print(labels[label_index]);
+  strcpy_P(label_buffer, (char*)pgm_read_word(&(labels[label_index])));
+  display.print(label_buffer);
 
   // Small output
   display.setTextSize(1);
   display.setCursor(96, 0);
-  display.print("|");
+  display.print(F("|"));
   display.print(state);
   display.setCursor(96, 8);
-  display.print("|");
+  display.print(F("|"));
   display.print(display_voltage->sensorValue); 
   display.setCursor(96, 16);
-  display.print("|");
-  display.print(display_voltage->adcVoltageFast(), 2);
+  display.print(F("|"));
+  display_float(display_voltage->adcVoltageFast(), 4, 2);
   display.setCursor(96, 24);
-  display.print("|");
-  display.print(display_voltage->adcVoltageSlow(), 2);
+  display.print(F("|"));
+  display_float(display_voltage->adcVoltageSlow(), 4, 2);
   display.display();
 }
 
 void setup() {
   Serial.begin(9600);
-  EEPROM.begin();
 
+  EEPROM.begin();
   // Initialize EEPROM
 #ifdef EEPROM_RESET
-  EEPROM.write(0x00, 255);
+  reset_config();
 #endif
   byte eeprom_ver = EEPROM.read(0x00);
   if (eeprom_ver == 255) {
-    EEPROM.write(0x00, 1);
-    reset_config();
+      reset_config();
   }
   load_config();
 
@@ -771,10 +895,22 @@ void setup() {
   }
   start_time = millis();
 
+  display.clearDisplay();
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(0, 0);
+  display.setTextSize(1);
+  display.setTextWrap(true);
+  display.print(EEPROM.length());
+  for (uint16_t i=0; i<EEPROM.length(); i++) {
+    display.print(EEPROM.read(i));
+  }
+  display.display();
+  delay(1000);
+
   // https://en.wikipedia.org/wiki/Code_page_437
   display.cp437(true);
   display_info(start_time, NONE);
-  delay(2000);
+  delay(1000);
   
 
 
@@ -782,7 +918,7 @@ void setup() {
   display.clearDisplay();
   display.drawBitmap(0, 8, tarpn_logo_bitmap, 128, 32, WHITE);
   display.display();
-  delay(2000);
+  delay(1000);
 #else
   display.setTextColor(SSD1306_WHITE);
   display.setCursor(4, 4);
@@ -795,6 +931,7 @@ void setup() {
   display.invertDisplay(false);
 #endif
   
+  /*
   // Flash the status led
   digitalWrite(STATUS_LED, HIGH);
   delay(500);
@@ -804,6 +941,7 @@ void setup() {
   delay(500);
   digitalWrite(STATUS_LED, LOW);
   delay(500);
+  */
 
   /*
   // Print out EEPROM
@@ -888,7 +1026,7 @@ void loop() {
   }
 
   // Choose a display mode
-  if (error_code != -1) {
+  if (error_code != NoMessage) {
     // If there's a new error code, display it
     last_error_display = now;
     display_message(now, event);

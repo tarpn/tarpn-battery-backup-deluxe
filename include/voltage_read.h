@@ -5,12 +5,13 @@
 #include <Ewma.h>
 
 struct VoltageRead {
-  double factor;                      // A factor to convert a voltage to a value
-  double offset;                      // An offset to subtract after scaling by the factor
-  uint16_t sensorValue;               // Raw sensor data
-  double reference_voltage;           // The ADC reference voltage
+  float * factor;                     // A factor to convert a voltage to a value
+  float * offset;                     // An offset to subtract after scaling by the factor
+  float * reference_voltage;          // The ADC reference voltage
   Ewma * filter = new Ewma(0.05);     // Slow moving average filter
   Ewma * fastFilter = new Ewma(0.5);  // Fast moving average filter
+  uint16_t sensorValue;               // Raw sensor data
+
 
   /**
    * Initialize the voltage read object with the reference voltage and the voltage divider factor.
@@ -18,7 +19,7 @@ struct VoltageRead {
    * @param referernce_voltage
    * @param voltage_factor
   */
-  VoltageRead(double, double);
+  VoltageRead(float * referernce_voltage, float * voltage_factor);
 
   /**
    * Initialize the voltage read object with the reference voltage, the voltage divider factor, and 
@@ -28,7 +29,7 @@ struct VoltageRead {
    * @param voltage_factor
    * @param voltage_offset
   */
-  VoltageRead(double, double, double);
+  VoltageRead(float * referernce_voltage, float * voltage_factor, float * voltage_offset);
   
   double adcVoltageSlow();        // The real voltage being read at the ADC input (slow filter)
   double adcVoltageFast();        // The real voltage being read at the ADC input (fast filter)
