@@ -7,21 +7,25 @@
 #include <Bounce2.h>
 // #define ENCODER_OPTIMIZE_INTERRUPTS
 #include <Encoder.h>
+#include <LowPower.h>
 
 #include "config.h"
 #include "voltage_read.h"
+#include "free_memory.h"
 
 #define SCREEN_WIDTH 128    // OLED display width, in pixels
 #define SCREEN_HEIGHT 32    // OLED display height, in pixels
 #define OLED_RESET -1       // Reset pin # (or -1 if sharing Arduino reset pin)
 #define SCREEN_ADDRESS 0x3C // See datasheet for Address; 0x3D for 128x64, 0x3C for 128x32
 
+#define ENCODER_PIN_A 2
+#define ENCODER_PIN_B 3
+#define RPI_SIG_PIN 6
 #define STATUS_LED 7
+#define RPI_PWR_PIN 8
+#define BATTERY_PIN 9
+#define SUPPLY_PIN 10
 #define BUTTON_PIN 11
-#define ENCODER_PIN_A 3
-#define ENCODER_PIN_B 2
-#define RPI_PIN 0
-#define MOSTFET_SW 9
 
 #define WARMUP_TIME_MS                2000    // Collect samples from the ADC for this long after startup
 #define STANDBY_LOW_VOLTAGE           12.5    // Below this PSU voltage, connect the battery
@@ -37,9 +41,11 @@
 #define OVER_TEMP_RECOVERY            50      // 
 #define OVER_TEMP_RECOVERY_MS         10000   // 
 
+#define ABSOLUTE_MAX_VOLTAGE 18.0
+#define ABSOLUTE_MAX_TEMP 100.0
 //#define EEPROM_RESET 1
 
-#define ADC_ZENER_VOLTAGE     4.65    // Measured from D1
+#define ADC_ZENER_VOLTAGE     4.84    // Measured from D1
 #define VOLTAGE_FACTOR        0.167   // For 10k 49.9k resistor divider use 0.167. For 10k 100k, use 0.091
 #define CURRENT_FACTOR        0.1204  // Shunt resistor value times gain factor (0.003 * 40 = 0.120)
 #define CURRENT_OFFSET        2.400   // Op amp uses a 2.4V reference to allow for negative voltages
@@ -51,7 +57,6 @@ struct StatefulConfigs {
   float current_factor;
   float current_offset;
   // Configurables
-  
   float standby_voltage;
   float batt_high_voltage_cutoff;
   float batt_high_voltage_recovery;
@@ -63,13 +68,13 @@ struct StatefulConfigs {
   float overtemp_cutoff;
   float overtemp_recovery;
   float overtemp_recovery_ms;
-
 } config_defaults = {
+  // Tunables
   ADC_ZENER_VOLTAGE, 
   VOLTAGE_FACTOR, 
   CURRENT_FACTOR, 
   CURRENT_OFFSET,
-  
+  // Configurables
   STANDBY_LOW_VOLTAGE,
   BATTERY_HIGH_VOLTAGE_CUTOFF,
   BATTERY_HIGH_VOLTAGE_RECOVERY,
@@ -90,17 +95,35 @@ enum State {
   Initializing,     // 1
   Standby,          // 2
   Backup,           // 3
-  BatteryLow,       // 4
-  BatteryLowTrip,   // 5
-  BatteryHigh,      // 6
-  BatteryHighTrip,  // 7
-  OverTemp,         // 8
-  OverTempRecovery  // 9
+  Recovery,         // 4
+  BatteryLow,       // 5
+  BatteryLowTrip,   // 6
+  BatteryHigh,      // 7
+  BatteryHighTrip,  // 8
+  OverTemp,         // 9
+  OverTempRecovery  // 10
+};
+
+const char state_0[] PROGMEM = "Null";
+const char state_1[] PROGMEM = "Initializing";
+const char state_2[] PROGMEM = "Standby";
+const char state_3[] PROGMEM = "Backup";
+const char state_4[] PROGMEM = "Recovery";
+const char state_5[] PROGMEM = "BatteryLow";
+const char state_6[] PROGMEM = "BatteryLowTrip";
+const char state_7[] PROGMEM = "BatteryHigh";
+const char state_8[] PROGMEM = "BatteryHighTrip";
+const char state_9[] PROGMEM = "OverTemp";
+const char state_10[] PROGMEM = "OverTempRecovery";
+
+const char* const states[] PROGMEM = {
+  state_0, state_1, state_2, state_3, state_4, state_5,
+  state_6, state_7, state_8, state_9, state_10
 };
 
 enum Messages {
   NoMessage,
-  ReverseCurrentMessage,
+  SupplyRecovered,
   LowSupplyVoltageMessage,
   LowBatteryVoltageMessage,
   HighBatteryVoltageMessage,
@@ -119,7 +142,7 @@ enum UserEvent {
 
 const char label_0[] PROGMEM = "Battery Voltage";
 const char label_1[] PROGMEM = "Supply Voltage";
-const char label_2[] PROGMEM = "Battery Current";
+const char label_2[] PROGMEM = "Load Current";
 const char label_3[] PROGMEM = "Temperature";
 const char* const labels[] PROGMEM = {label_0, label_1, label_2, label_3};
 char label_buffer[16];
@@ -134,7 +157,7 @@ struct VoltageRead * currentSense = new VoltageRead(&(configs.reference_voltage)
 /**
  * A nicely packed structure for storing the configurations in the EEPROM.
  * All values are scaled up by 1000 (except timing values) and stored as 16-bit unsigned ints.
-*/
+ */
 struct PackedConfig {
   uint16_t reference_voltage;
   uint16_t voltage_factor;
@@ -177,14 +200,14 @@ void fromPackedConfig(StatefulConfigs * configs, PackedConfig * packed) {
   configs->current_factor = packed->current_factor / 1000.0;
   configs->current_offset = packed->current_offset / 1000.0;
   configs->standby_voltage = packed->standby_voltage / 1000.0;
-  configs->batt_high_voltage_cutoff = packed->batt_high_voltage_cutoff / 1000.0;
+  configs->batt_high_voltage_cutoff = min(ABSOLUTE_MAX_VOLTAGE, packed->batt_high_voltage_cutoff / 1000.0);
   configs->batt_high_voltage_recovery = packed->batt_high_voltage_recovery / 1000.0;
   configs->batt_high_voltage_trip_ms = packed->batt_high_voltage_trip_ms;
   configs->batt_low_voltage_cutoff = packed->batt_low_voltage_cutoff / 1000.0;
   configs->batt_low_voltage_recovery = packed->batt_low_voltage_recovery / 1000.0;
   configs->batt_low_voltage_trip_ms = packed->batt_low_voltage_trip_ms;
   configs->batt_recovery_ms = packed->batt_recovery_ms;
-  configs->overtemp_cutoff = packed->overtemp_cutoff;
+  configs->overtemp_cutoff = min(ABSOLUTE_MAX_TEMP, packed->overtemp_cutoff);
   configs->overtemp_recovery = packed->overtemp_recovery;
   configs->overtemp_recovery_ms = packed->overtemp_recovery_ms;
 }
@@ -219,6 +242,7 @@ long last_switch_open_time;
 long last_switch_closed_time;
 double temperature;
 long last_adc_read;
+long last_serial_write;
 
 Encoder myEnc(ENCODER_PIN_A, ENCODER_PIN_B);
 int last_encoder_pos = 0;
@@ -232,9 +256,14 @@ uint8_t display_choice = 0;
 Messages error_code = NoMessage;
 long last_error_display = 0;
 
+double current_amp_seconds = 0;
+
 long last_blink_off = -1; // if not -1, flash off
 long last_blink_on = -1;  // if not -1, flash on
 
+/**
+ * Basic blink/pulse routine. On for 400ms, off for 100ms. Used to flash a single character on the OLED on/off.
+ */
 boolean do_blink(long now) {
   if (last_blink_off == -1 && last_blink_on == -1) {
     last_blink_on = now;
@@ -269,8 +298,10 @@ void read_voltage(uint8_t pin, VoltageRead * read) {
   read->fastFilter->filter(read->sensorValue);
 }
 
+/**
+ * Calculate the temperature using Steinhart–Hart equation. 49.9k 10k resistor divider is hard coded in here.
+ */
 double read_temp() {
-  // Temperature is a bit difference since it has a complicated formula and not just a scaling factor.
   // We still use the EMWA filter in VoltageRead, but calclulate the real value here.
   double res = (49900.0 * tempSense->adcVoltageSlow()) / (batteryVoltage->smoothedValueSlow() - tempSense->adcVoltageSlow());
   double steinhart = logf(res / 10000.0);
@@ -281,30 +312,21 @@ double read_temp() {
   return steinhart;
 }
 
-void open_switch(long now) {
-  if (switch_closed)
-    last_switch_open_time = now;
-  switch_closed = false;
-  digitalWrite(MOSTFET_SW, LOW);
-  digitalWrite(STATUS_LED, LOW);
-}
+/*****************
+ *               *
+ * State Machine *
+ *               *
+ *****************/
 
-void close_switch(long now) {
-  if (!switch_closed)
-    last_switch_closed_time = now;
-  switch_closed = true;
-  digitalWrite(MOSTFET_SW, HIGH);
-  digitalWrite(STATUS_LED, HIGH);
-}
-
-bool is_mosfet_on() {
-  return switch_closed;
-}
-
+/**
+ * Determine if a state change is needed. If a change is needed, set last_state_change to now. This function does 
+ * not actually open or close the switches, it just determines the correct internal state. See "apply_state" for
+ * updating the three output pins based on the state.
+ */
 State next_state(long now, double temp, State state) {
   if (state != Initializing &&
       state != OverTemp &&
-      temp >= OVER_TEMP_CUTOFF) {
+      temp >= configs.overtemp_cutoff) {
     // Over temp logic applies to most states, so do it separately.
     last_state_change = now;
     error_code = OverTempMessage;
@@ -325,57 +347,63 @@ State next_state(long now, double temp, State state) {
     }
     break;
   case Standby:
-    if (supplyVoltage->instantValue() < STANDBY_LOW_VOLTAGE) {
+    if (supplyVoltage->instantValue() < configs.standby_voltage) {
       error_code = LowSupplyVoltageMessage;
       next_state = Backup;
     }
     break;
   case Backup:
-    if (batteryVoltage->smoothedValueSlow() < BATTERY_LOW_VOLTAGE_CUTOFF) {
+    if (batteryVoltage->smoothedValueSlow() < configs.batt_low_voltage_cutoff) {
       error_code = LowBatteryVoltageMessage;
       next_state = BatteryLow;
-    } else if (batteryVoltage->smoothedValueSlow() >= BATTERY_HIGH_VOLTAGE_CUTOFF) {
+    } else if (batteryVoltage->smoothedValueSlow() >= configs.batt_high_voltage_cutoff) {
       error_code = HighBatteryVoltageMessage;
       next_state = BatteryHigh;
-    } else if (currentSense->smoothedValueFast() < -0.5) {
-      // More then 0.5 amps of current flowing from supply to battery
-      error_code = ReverseCurrentMessage;
-      next_state = Standby;
+    } else if (supplyVoltage->instantValue() >= configs.standby_voltage) {
+      next_state = Recovery;
     }
     break;
+  case Recovery:
+    if (supplyVoltage->instantValue() < configs.standby_voltage) {
+      next_state = Backup;
+    } else if (current_state_ms >= 3000) {
+      error_code = SupplyRecovered;
+      next_state = Standby;
+    } 
+    break;
   case BatteryLow:
-    if (current_state_ms >= BATTERY_LOW_VOLTAGE_TRIP_MS) {
+    if (current_state_ms >= configs.batt_low_voltage_trip_ms) {
       next_state = BatteryLowTrip;
-    } else if (batteryVoltage->smoothedValueSlow() >= BATTERY_LOW_VOLTAGE_RECOVERY) {
+    } else if (batteryVoltage->smoothedValueSlow() >= configs.batt_low_voltage_recovery) {
       next_state = Backup;
     }
     break;
   case BatteryLowTrip:
-    if (batteryVoltage->smoothedValueSlow() >= BATTERY_LOW_VOLTAGE_RECOVERY) {
+    if (batteryVoltage->smoothedValueSlow() >= configs.batt_low_voltage_recovery) {
       next_state = Backup;
     }
     break;
   case BatteryHigh:
-    if (current_state_ms >= BATTERY_HIGH_VOLTAGE_TRIP_MS) {
+    if (current_state_ms >= configs.batt_high_voltage_trip_ms) {
       next_state = BatteryHighTrip;
-    } else if (batteryVoltage->smoothedValueSlow() < BATTERY_HIGH_VOLTAGE_RECOVERY) {
+    } else if (batteryVoltage->smoothedValueSlow() < configs.batt_high_voltage_recovery) {
       next_state = Backup;
     }
     break;
   case BatteryHighTrip:
-    if (batteryVoltage->smoothedValueSlow() < BATTERY_HIGH_VOLTAGE_RECOVERY) {
+    if (batteryVoltage->smoothedValueSlow() < configs.batt_high_voltage_recovery) {
       next_state = Backup;
     }
     break;
   case OverTemp:
-    if (temp < OVER_TEMP_RECOVERY) {
+    if (temp < configs.overtemp_recovery) {
       next_state = OverTempRecovery;
     }
     break;
   case OverTempRecovery:
     // Don't need to check for over temp here since we check it at the top of this routine.
     // Just check that we're still below the recovery temperature for long enough.
-    if (current_state_ms >= OVER_TEMP_RECOVERY_MS && temp < OVER_TEMP_RECOVERY) {
+    if (current_state_ms >= configs.overtemp_recovery_ms && temp < configs.overtemp_recovery) {
       next_state = Standby;
     }
     break;
@@ -390,24 +418,65 @@ State next_state(long now, double temp, State state) {
   }
 }
 
+/**
+ * Test if the both switches are open. This means the load is disconnected and parts of the board are unpowered.
+ */
+bool is_load_disconnected(State state) {
+  switch (state) {
+    case BatteryLowTrip:
+    case OverTemp:
+    case OverTempRecovery:
+    case BatteryHighTrip:
+      return false;
+    default:
+      return true;
+  }
+}
+
+/**
+ * For the current state, determine the appropriate digital outputs. 
+ * 
+ * TODO fix these inverted outputs! Need inverting mosfet driver
+ */
 void apply_state(long now, State state) {
   switch (state) {
     case Backup:
+    case Recovery:
     case BatteryLow:
     case BatteryHigh:
-      close_switch(now);
+      // RPi is on, battery is connected, supply is disconnected
+      digitalWrite(RPI_PWR_PIN, HIGH);
+      digitalWrite(BATTERY_PIN, LOW);
+      digitalWrite(SUPPLY_PIN, HIGH);
+      digitalWrite(STATUS_LED, HIGH);
+      break;
+    case BatteryLowTrip:
+    case OverTemp:
+    case OverTempRecovery:
+    case BatteryHighTrip:
+      // RPi is off, battery is disconnected, supply is disconnected
+      digitalWrite(RPI_PWR_PIN, LOW);
+      digitalWrite(BATTERY_PIN, HIGH);
+      digitalWrite(SUPPLY_PIN, HIGH);
+      digitalWrite(STATUS_LED, LOW);
       break;
     case Initializing:
     case Standby:
-    case BatteryLowTrip:
-    case BatteryHighTrip:
-    case OverTemp:
-    case OverTempRecovery:
     default:
-      open_switch(now);
+      // RPi is on, battery is disconnected, supply is connected
+      digitalWrite(RPI_PWR_PIN, HIGH);
+      digitalWrite(BATTERY_PIN, HIGH);
+      digitalWrite(SUPPLY_PIN, LOW);
+      digitalWrite(STATUS_LED, LOW);
       break;
   }
 }
+
+/*********************************
+ *                               *
+ * Configuration and UI Routines *
+ *                               *
+ *********************************/
 
 uint8_t config_depth = 0;
 uint8_t config_selection_0 = 0;
@@ -430,6 +499,8 @@ void display_info(long now, UserEvent event) {
   display.println(F("David Arthur, K4DBZ"));
   display.println(BUILD_DATE);
   display.print(GIT_REV);
+  display.print(F(" "));
+  display.print(freeMemory());
   display.display();
 }
 
@@ -450,7 +521,7 @@ struct StaticConfig {
 } staticConfigSRAM {"", "", "", 0, 0, 0};
 
 #define NUM_CONFIGS 11
-#define NUM_TUNABLES 2
+#define NUM_TUNABLES 3
 
 struct DynamicConfig dynamicConfigs[NUM_CONFIGS + NUM_TUNABLES] = {
   {&(configs.standby_voltage), NULL},
@@ -465,7 +536,8 @@ struct DynamicConfig dynamicConfigs[NUM_CONFIGS + NUM_TUNABLES] = {
   {&(configs.overtemp_recovery), NULL},
   {&(configs.overtemp_recovery_ms), NULL},
   {&(configs.current_factor), currentSense},
-  {&(configs.current_offset), currentSense}
+  {&(configs.current_offset), currentSense},
+  {&(configs.reference_voltage), currentSense}
 };
 
 const struct StaticConfig staticConfigs[NUM_CONFIGS + NUM_TUNABLES] PROGMEM = {
@@ -481,13 +553,14 @@ const struct StaticConfig staticConfigs[NUM_CONFIGS + NUM_TUNABLES] PROGMEM = {
   {"T2", "Temperature", "Recovery Temp", 1, -1, 1},
   {"T3", "Temperature", "Recovery Time ms", 3, 0, 0},
   {"X1", "Current Sense", "", -1, -3, 3},
-  {"X2", "Current Offset", "", 0, -2, 2}
+  {"X2", "Current Offset", "", 0, -3, 3},
+  {"X3", "ADC Voltage", "", 0, -3, 3}
 };
 
 char float_buffer[10];
-void display_float(float value, uint8_t width, uint8_t precision) {
+void display_float(float value, uint8_t width, uint8_t precision, Print * printer) {
   dtostrf(value, width, precision, float_buffer);
-  display.print(float_buffer);
+  (*printer).print(float_buffer);
 }
 
 DynamicConfig dynamicConfig;
@@ -534,7 +607,7 @@ void adjust_set_levels(long now, UserEvent event, bool levelsOrTune, uint8_t cho
   display.setCursor(0, 0);
   display.print(staticConfigSRAM.name);
   display.print(F(" ")); 
-  display_float(val, 5, staticConfigSRAM.decimal_places);
+  display_float(val, 5, staticConfigSRAM.decimal_places, &display);
   uint8_t blink_pos;
   if (!do_blink(now)) {
     uint8_t last_place = 84; // width is 5 characters (60px), right aligned
@@ -560,11 +633,14 @@ void adjust_set_levels(long now, UserEvent event, bool levelsOrTune, uint8_t cho
     } else {
       display.setCursor(80, 24);
     }
-    display_float(derived, 4, 2);
+    display_float(derived, 4, 2, &display);
   }
   display.display();
 }
 
+/**
+ * Render the "Set Levels" sub-menu. The configurable values are defined in "dynamicConfigs" and "staticConfigs".
+*/
 void display_set_levels(long now, UserEvent event, bool levelsOrTune, uint8_t choices_len) {
   if (event == SCROLL_RIGHT) {
     cycle_selection(&config_selection_1, choices_len + 1, true);
@@ -610,7 +686,7 @@ void display_set_levels(long now, UserEvent event, bool levelsOrTune, uint8_t ch
   display.setCursor(0, 0);
   display.print(staticConfigSRAM.name);
   display.print(" ");
-  display_float(*(dynamicConfig.value), 5, staticConfigSRAM.decimal_places);
+  display_float(*(dynamicConfig.value), 5, staticConfigSRAM.decimal_places, &display);
   display.setCursor(108, 0);
   display.print((char) 0x12); // up/down arrow
   display.setCursor(0, 16);
@@ -624,39 +700,12 @@ void display_set_levels(long now, UserEvent event, bool levelsOrTune, uint8_t ch
     } else {
       display.setCursor(80, 24);
     }
-    display_float(derived, 4, 2);
+    display_float(derived, 4, 2, &display);
   }
   display.display();
 }
 
-/**
- * Config mode, single click to enter, select "Return" or long click to exit.
- * 
- * Choices: 
- *  - Set Limits
- *  - Tune
- *  - Info
- *  - Save EEPROM
- *  - Return
- * 
- * Set Limits will show the voltage, temperature, and current limits for the board.
- * Tune will allow tweaking the voltage divider scaling factors.
- * 
- * In "Set Limits", each value is displayed with a name like V1, T1, etc. 
- * 
- * V1 14.50 ⏎
- * High voltage cutoff (small font)
- * 
- * Click to enter Set mode. Starts with the largest settable unit (e.g., 1 or 0.1) 
- * and that digit begins flashing on/off. A turn on the encoder changes the value, and
- * a click selects the next digit. A special return glyph is also selectable which will
- * exit Set mode. A long press also exits Set mode (and Config mode).
- * 
- * The "Tune" option is mostly the same as "Set Limits", but we also display a related
- * real-time value being read by the board. This is used for dialing in things like the
- * ADC voltage and the current sensor.
- * 
-*/
+
 void display_config(long now, UserEvent event) {
   if (event == LONG_PRESS) {
     config_mode_enabled = false;
@@ -754,7 +803,6 @@ void display_config(long now, UserEvent event) {
         adjust_set_levels(now, event, false, NUM_TUNABLES);
     }
   }
-
 }
 
 void display_message(long now, UserEvent event) {
@@ -763,8 +811,8 @@ void display_message(long now, UserEvent event) {
   display.setCursor(0, 0);
   display.setTextSize(2);
   switch (error_code) {
-    case ReverseCurrentMessage:
-      display.println(F("Battery\nDetected"));
+    case SupplyRecovered:
+      display.println(F("Supply\nDetected"));
       break;
     case LowSupplyVoltageMessage:
       display.println(F("Low Supply\nVoltage"));
@@ -834,7 +882,7 @@ void display_main(long now, UserEvent event) {
       break;
   }
 
-  // Big output
+  // Large output
   display.setCursor(0, 0);
   display.setTextSize(3);
   if (display_choice % 4 == 3) {
@@ -848,7 +896,7 @@ void display_main(long now, UserEvent event) {
   strcpy_P(label_buffer, (char*)pgm_read_word(&(labels[label_index])));
   display.print(label_buffer);
 
-  // Small output
+  // Debug output (on the right)
   display.setTextSize(1);
   display.setCursor(96, 0);
   display.print(F("|"));
@@ -858,16 +906,41 @@ void display_main(long now, UserEvent event) {
   display.print(display_voltage->sensorValue); 
   display.setCursor(96, 16);
   display.print(F("|"));
-  display_float(display_voltage->adcVoltageFast(), 4, 2);
+  display_float(display_voltage->adcVoltageFast(), 4, 2, &display);
   display.setCursor(96, 24);
   display.print(F("|"));
-  display_float(display_voltage->adcVoltageSlow(), 4, 2);
+  display_float(display_voltage->adcVoltageSlow(), 4, 2, &display);
   display.display();
 }
 
+/**
+ * Write out the current state, voltages, current, and time to the serial line
+ */
+void serial_print(long now) {
+  strcpy_P(label_buffer, (char*)pgm_read_word(&(states[state])));
+  Serial.printf(F("%-16s"), label_buffer);
+  Serial.print(F(" Battery="));
+  display_float(batteryVoltage->smoothedValueFast(), -7, 3, &Serial);
+  Serial.print(F(" Supply="));
+  display_float(supplyVoltage->smoothedValueFast(), -7, 3, &Serial);
+  Serial.print(F(" Temperature="));
+  display_float(temperature, -6, 3, &Serial);
+  Serial.print(F(" Current="));
+  display_float(currentSense->smoothedValueFast(), -6, 2, &Serial);
+  Serial.print(F(" AH="));
+  double ah = current_amp_seconds / 3600.;
+  display_float(ah, -8, 2, &Serial);
+  Serial.printf(F(" StateTime=%lu UpTime=%lu\n"), (now - last_state_change), now);
+  Serial.flush();
+}
+
+/******************
+ * Setup and loop *
+ ******************/
+
 void setup() {
   Serial.begin(9600);
-
+  
   EEPROM.begin();
   // Initialize EEPROM
 #ifdef EEPROM_RESET
@@ -880,20 +953,28 @@ void setup() {
   load_config();
 
   analogReference(EXTERNAL);
-
-  pinMode(MOSTFET_SW, OUTPUT);  
-  digitalWrite(MOSTFET_SW, LOW);
-
-  pinMode(RPI_PIN, OUTPUT);
   pinMode(A0, INPUT); // Battery voltage
   pinMode(A1, INPUT); // Supply voltage
   pinMode(STATUS_LED, OUTPUT);
+  pinMode(BATTERY_PIN, OUTPUT);  
+  pinMode(SUPPLY_PIN, OUTPUT);  
+  pinMode(RPI_SIG_PIN, OUTPUT);
+  pinMode(RPI_PWR_PIN, OUTPUT);
+
+  digitalWrite(SUPPLY_PIN, HIGH); // TODO invert these!
+  digitalWrite(BATTERY_PIN, LOW); // If the uC has power, there is a battery! Start off with battery connected
+  digitalWrite(RPI_SIG_PIN, HIGH);
+  digitalWrite(RPI_PWR_PIN, HIGH);
 
   if(!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
     Serial.println(F("SSD1306 allocation failed"));
     for(;;); // Don't proceed, loop forever
   }
   start_time = millis();
+  //Serial.println("0\tV\t0.0");
+  Serial.println();
+  Serial.flush();
+  Serial.println("Start");
 
   display.clearDisplay();
   display.setTextColor(SSD1306_WHITE);
@@ -912,8 +993,6 @@ void setup() {
   display_info(start_time, NONE);
   delay(1000);
   
-
-
 #ifdef TARPN_LOGO
   display.clearDisplay();
   display.drawBitmap(0, 8, tarpn_logo_bitmap, 128, 32, WHITE);
@@ -930,35 +1009,6 @@ void setup() {
   delay(500);
   display.invertDisplay(false);
 #endif
-  
-  /*
-  // Flash the status led
-  digitalWrite(STATUS_LED, HIGH);
-  delay(500);
-  digitalWrite(STATUS_LED, LOW);
-  delay(500);
-  digitalWrite(STATUS_LED, HIGH);
-  delay(500);
-  digitalWrite(STATUS_LED, LOW);
-  delay(500);
-  */
-
-  /*
-  // Print out EEPROM
-  display.clearDisplay();
-  display.setTextColor(SSD1306_WHITE);
-  display.setTextSize(1);
-  display.setCursor(0, 0);
-  display.printf("ver: %d\n", eeprom_ver);
-  display.print("ref: ");
-  display.println(configs.reference_voltage, 3);
-  display.print("vol: ");
-  display.println(configs.voltage_factor, 3);
-  display.print("cur: ");
-  display.println(configs.current_offset, 3);
-  display.display();
-  delay(1000);
-  */
 
   // Initialize
   state = Initializing;
@@ -967,35 +1017,58 @@ void setup() {
   last_switch_open_time = start_time;
   last_switch_closed_time = 0L;
   last_adc_read = 0L;
+  last_serial_write = 0L;
   next_display_change = 0L;
 
   user_sw = Bounce();
   user_sw.attach(5, INPUT);
   user_sw.interval(5);
-
-  digitalWrite(RPI_PIN, HIGH);
 }
+
 
 void loop() {
   long now = millis();
 
-  // TODO Optimize SupplyOff handling? (would need a hardware interrupt)
+  // Always read the supply voltage so we can quickly detect loss of power
   read_voltage(A3, supplyVoltage);
 
-  // Determine desired switch state
+  // Evaluate the state machine and change the output state
   state = next_state(now, temperature, state);
   apply_state(now, state);
 
-  // Read ADCs ever so often
+  if (last_state_change == now) {
+    serial_print(now);
+  }
+
+  // Only read the ADCs every so often
   if ((now - last_adc_read) < 20) {
     return;
   } else {
-    last_adc_read = now;
     read_voltage(A0, batteryVoltage);
     read_voltage(A1, currentSense);
     read_voltage(A2, tempSense);
     temperature = read_temp();
+    double current_sec = (now - last_adc_read) / 1000.;
+    current_amp_seconds += (currentSense->smoothedValueFast() * current_sec);
+    last_adc_read = now;
   }
+
+  if (state == BatteryLowTrip) {
+    //display.dim(true);
+    //display.clearDisplay();
+    //display.display();
+    // TODO low power mode will mess with millis(), which causes the state transitions
+    // to get delayed. Add a LowPowerMode to the state machine and account for timing 
+    // discrepancy there.
+    //LowPower.powerDown(SLEEP_1S, ADC_OFF, BOD_OFF);
+    //return;
+  }
+
+  // Output to Serial occasionally
+  if ((now - last_serial_write) > 2000) {
+    serial_print(now);
+    last_serial_write = now;
+  } 
 
   // Check for user input
   user_sw.update();
@@ -1041,5 +1114,5 @@ void loop() {
     } else {
       display_main(now, event);
     }
-  }  
+  }
 }
