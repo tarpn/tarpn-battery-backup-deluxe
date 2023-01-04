@@ -68,3 +68,14 @@ number of milliseconds before transitioning to Standby.
 * S2: closed
 * S3: closed
 
+## Faults
+
+The system monitors battery voltage to protect the loads from over-voltage and to protect the battery from
+under-voltage. In these two cases, the battery is disconnected from the loads.
+
+A temperature sensor is used to monitor the temperature of the PCB near the mosfet switches. If a high
+temperature is detected, the switches are both opened to prevent the mosfets from over-heating and failing.
+
+* S1: open 
+* S2: open
+* S3: closed
