@@ -1,5 +1,7 @@
 # TARPN Battery Backup
 
+![IMG_0660](https://user-images.githubusercontent.com/55116/211970858-cadd3850-cdff-4307-b690-b1d392b2d327.jpg)
+
 Power board layout
 
 ```
