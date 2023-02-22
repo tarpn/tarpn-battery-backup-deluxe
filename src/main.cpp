@@ -20,7 +20,8 @@
 
 #define ENCODER_PIN_A 2
 #define ENCODER_PIN_B 3
-#define RPI_SIG_PIN 6
+#define RPI_SHUTDOWN_PIN 4  // when pulled low, signals the RPi to shutdown  
+#define RPI_POWEROFF_PIN 6  // pulled high, low, high when RPi is ready for power off 
 #define STATUS_LED 7
 #define RPI_PWR_PIN 8
 #define BATTERY_PIN 9
@@ -101,7 +102,9 @@ enum State {
   BatteryHigh,      // 7
   BatteryHighTrip,  // 8
   OverTemp,         // 9
-  OverTempRecovery  // 10
+  OverTempRecovery, // 10
+  BeginShutdown,    // 11
+  ShutdownComplete  // 12
 };
 
 const char state_0[] PROGMEM = "Null";
@@ -115,10 +118,12 @@ const char state_7[] PROGMEM = "BatteryHigh";
 const char state_8[] PROGMEM = "BatteryHighTrip";
 const char state_9[] PROGMEM = "OverTemp";
 const char state_10[] PROGMEM = "OverTempRecovery";
+const char state_11[] PROGMEM = "BeginShutdown";
+const char state_12[] PROGMEM = "ShutdownComplete";
 
 const char* const states[] PROGMEM = {
   state_0, state_1, state_2, state_3, state_4, state_5,
-  state_6, state_7, state_8, state_9, state_10
+  state_6, state_7, state_8, state_9, state_10, state_11, state_12
 };
 
 enum Messages {
@@ -129,7 +134,9 @@ enum Messages {
   HighBatteryVoltageMessage,
   OverTempMessage,
   EEPROMSavedMessage,
-  EEPROMResetMessage
+  EEPROMResetMessage,
+  RPIShutdownMessage,
+  ShutdownMessage
 };
 
 enum UserEvent {
@@ -261,6 +268,20 @@ double current_amp_seconds = 0;
 long last_blink_off = -1; // if not -1, flash off
 long last_blink_on = -1;  // if not -1, flash on
 
+bool rpi_powered_on = false;
+
+void read_rpi_power_state() {
+  rpi_powered_on = digitalRead(RPI_POWEROFF_PIN);
+}
+
+void shutdown_rpi() {
+  pinMode(RPI_SHUTDOWN_PIN, OUTPUT);
+  delay(1);
+  digitalWrite(RPI_SHUTDOWN_PIN, LOW);
+  delay(100);
+  pinMode(RPI_SHUTDOWN_PIN, INPUT);
+}
+
 /**
  * Basic blink/pulse routine. On for 400ms, off for 100ms. Used to flash a single character on the OLED on/off.
  */
@@ -312,11 +333,11 @@ double read_temp() {
   return steinhart;
 }
 
-/*****************
- *               *
- * State Machine *
- *               *
- *****************/
+/*******************************************************************************
+ *                                                                             *
+ *                                 State Machine                               *
+ *                                                                             *
+ *******************************************************************************/
 
 /**
  * Determine if a state change is needed. If a change is needed, set last_state_change to now. This function does 
@@ -326,6 +347,8 @@ double read_temp() {
 State next_state(long now, double temp, State state) {
   if (state != Initializing &&
       state != OverTemp &&
+      state != BeginShutdown &&
+      state != ShutdownComplete &&
       temp >= configs.overtemp_cutoff) {
     // Over temp logic applies to most states, so do it separately.
     last_state_change = now;
@@ -354,10 +377,8 @@ State next_state(long now, double temp, State state) {
     break;
   case Backup:
     if (batteryVoltage->smoothedValueSlow() < configs.batt_low_voltage_cutoff) {
-      error_code = LowBatteryVoltageMessage;
       next_state = BatteryLow;
     } else if (batteryVoltage->smoothedValueSlow() >= configs.batt_high_voltage_cutoff) {
-      error_code = HighBatteryVoltageMessage;
       next_state = BatteryHigh;
     } else if (supplyVoltage->instantValue() >= configs.standby_voltage) {
       next_state = Recovery;
@@ -373,18 +394,24 @@ State next_state(long now, double temp, State state) {
     break;
   case BatteryLow:
     if (current_state_ms >= configs.batt_low_voltage_trip_ms) {
+      error_code = LowBatteryVoltageMessage;
       next_state = BatteryLowTrip;
     } else if (batteryVoltage->smoothedValueSlow() >= configs.batt_low_voltage_recovery) {
       next_state = Backup;
     }
     break;
   case BatteryLowTrip:
-    if (batteryVoltage->smoothedValueSlow() >= configs.batt_low_voltage_recovery) {
+    if (current_state_ms >= 10000 && batteryVoltage->smoothedValueSlow() < 10.0) {
+      error_code = ShutdownMessage;
+      next_state = BeginShutdown;
+      shutdown_rpi();
+    } else if (batteryVoltage->smoothedValueSlow() >= configs.batt_low_voltage_recovery) {
       next_state = Backup;
     }
     break;
   case BatteryHigh:
     if (current_state_ms >= configs.batt_high_voltage_trip_ms) {
+      error_code = HighBatteryVoltageMessage;
       next_state = BatteryHighTrip;
     } else if (batteryVoltage->smoothedValueSlow() < configs.batt_high_voltage_recovery) {
       next_state = Backup;
@@ -407,8 +434,24 @@ State next_state(long now, double temp, State state) {
       next_state = Standby;
     }
     break;
+  case BeginShutdown:
+    if (current_state_ms > 10000 || !rpi_powered_on) {
+      // Transition to low power mode here
+      display.clearDisplay();
+      display.setCursor(0, 0);
+      display.setTextSize(2);
+      display.print("Low power\nmode");
+      display.display();
+      display.dim(true);
+      next_state = ShutdownComplete;
+    }
+    break;
+  case ShutdownComplete:
+    if (batteryVoltage->instantValue() >= configs.batt_low_voltage_recovery) {
+      next_state = Backup;
+    }
+    break;
   }
-
 
   if (next_state == Null) {
     return state;
@@ -427,6 +470,8 @@ bool is_load_disconnected(State state) {
     case OverTemp:
     case OverTempRecovery:
     case BatteryHighTrip:
+    case BeginShutdown:
+    case ShutdownComplete:
       return false;
     default:
       return true;
@@ -435,8 +480,6 @@ bool is_load_disconnected(State state) {
 
 /**
  * For the current state, determine the appropriate digital outputs. 
- * 
- * TODO fix these inverted outputs! Need inverting mosfet driver
  */
 void apply_state(long now, State state) {
   switch (state) {
@@ -445,7 +488,7 @@ void apply_state(long now, State state) {
     case BatteryLow:
     case BatteryHigh:
       // RPi is on, battery is connected, supply is disconnected
-      digitalWrite(RPI_PWR_PIN, HIGH);
+      digitalWrite(RPI_PWR_PIN, LOW);
       digitalWrite(BATTERY_PIN, LOW);
       digitalWrite(SUPPLY_PIN, HIGH);
       digitalWrite(STATUS_LED, HIGH);
@@ -454,8 +497,22 @@ void apply_state(long now, State state) {
     case OverTemp:
     case OverTempRecovery:
     case BatteryHighTrip:
-      // RPi is off, battery is disconnected, supply is disconnected
+      // RPi is on, battery is disconnected, supply is disconnected
       digitalWrite(RPI_PWR_PIN, LOW);
+      digitalWrite(BATTERY_PIN, HIGH);
+      digitalWrite(SUPPLY_PIN, HIGH);
+      digitalWrite(STATUS_LED, LOW);
+      break;
+    case BeginShutdown:
+      // RPi is on, battery is disconnected, supply is disconnected
+      digitalWrite(RPI_PWR_PIN, LOW);
+      digitalWrite(BATTERY_PIN, HIGH);
+      digitalWrite(SUPPLY_PIN, HIGH);
+      digitalWrite(STATUS_LED, LOW);
+      break;
+    case ShutdownComplete:
+      // RPi is off, battery is disconnected, supply is disconnected
+      digitalWrite(RPI_PWR_PIN, HIGH);
       digitalWrite(BATTERY_PIN, HIGH);
       digitalWrite(SUPPLY_PIN, HIGH);
       digitalWrite(STATUS_LED, LOW);
@@ -464,7 +521,7 @@ void apply_state(long now, State state) {
     case Standby:
     default:
       // RPi is on, battery is disconnected, supply is connected
-      digitalWrite(RPI_PWR_PIN, HIGH);
+      digitalWrite(RPI_PWR_PIN, LOW);
       digitalWrite(BATTERY_PIN, HIGH);
       digitalWrite(SUPPLY_PIN, LOW);
       digitalWrite(STATUS_LED, LOW);
@@ -717,7 +774,7 @@ void display_config(long now, UserEvent event) {
   display.setTextSize(2);
   display.setCursor(0, 0);
 
-  uint8_t choices = 6; 
+  uint8_t choices = 7; 
   if (config_depth == 0) {
     if (event == SCROLL_RIGHT) {
       cycle_selection(&config_selection_0, choices, true);
@@ -736,6 +793,11 @@ void display_config(long now, UserEvent event) {
           error_code = EEPROMResetMessage;
           break;
         case 5:
+          //shutdown_rpi();
+          digitalWrite(RPI_PWR_PIN, HIGH);
+          error_code = RPIShutdownMessage;
+          break;
+        case 6:
           config_selection_1 = 0;
           config_mode_enabled = false;
           break;
@@ -772,6 +834,12 @@ void display_config(long now, UserEvent event) {
         display.print(F("EEPROM"));
         break;
       case 5:
+        display.setCursor(4, 0);
+        display.print(F("Shutdown"));
+        display.setCursor(4, 16);
+        display.print(F("RPi"));
+        break;
+      case 6:
         display.print(F("Return"));
         display.drawBitmap(84, 8, return_glyph, 12, 18, WHITE);
         break;
@@ -811,6 +879,8 @@ void display_message(long now, UserEvent event) {
   display.setCursor(0, 0);
   display.setTextSize(2);
   switch (error_code) {
+    case NoMessage:
+      break;
     case SupplyRecovered:
       display.println(F("Supply\nDetected"));
       break;
@@ -827,13 +897,19 @@ void display_message(long now, UserEvent event) {
       display.println(F("Over Temp"));
       break;
     case EEPROMSavedMessage:
-      display.println(F("EEPROM\nsaved!"));
+      display.println(F("EEPROM\nsaved"));
       break;
     case EEPROMResetMessage:
-      display.println(F("EEPROM\nreset!"));
+      display.println(F("EEPROM\nreset"));
+      break;
+    case RPIShutdownMessage:
+      display.println(F("RPI is\nshutdown"));
+      break;
+    case ShutdownMessage:
+      display.println(F("Shutting\ndown RPi"));
       break;
     default:
-      display.print(F("Message "));
+      display.println(F("Message "));
       display.println(error_code);
       break;
   }
@@ -899,11 +975,12 @@ void display_main(long now, UserEvent event) {
   // Debug output (on the right)
   display.setTextSize(1);
   display.setCursor(96, 0);
-  display.print(F("|"));
+  display.print(F("|E"));
   display.print(state);
   display.setCursor(96, 8);
   display.print(F("|"));
-  display.print(display_voltage->sensorValue); 
+  display.print(rpi_powered_on);
+  //display.print(display_voltage->sensorValue); 
   display.setCursor(96, 16);
   display.print(F("|"));
   display_float(display_voltage->adcVoltageFast(), 4, 2, &display);
@@ -914,24 +991,33 @@ void display_main(long now, UserEvent event) {
 }
 
 /**
- * Write out the current state, voltages, current, and time to the serial line
+ * Write out the current state, voltages, current, and time to the serial line.
+ * Since the serial output is only sent every few seconds, the slow moving EWMA
+ * is used in order to capture intermittent values (e.g., current spikes). 
  */
+double last_amp_seconds = 0.0;
+
 void serial_print(long now) {
   strcpy_P(label_buffer, (char*)pgm_read_word(&(states[state])));
   Serial.printf(F("%-16s"), label_buffer);
   Serial.print(F(" Battery="));
-  display_float(batteryVoltage->smoothedValueFast(), -7, 3, &Serial);
+  display_float(batteryVoltage->smoothedValueSlow(), -7, 3, &Serial);
   Serial.print(F(" Supply="));
-  display_float(supplyVoltage->smoothedValueFast(), -7, 3, &Serial);
+  display_float(supplyVoltage->smoothedValueSlow(), -7, 3, &Serial);
   Serial.print(F(" Temperature="));
   display_float(temperature, -6, 3, &Serial);
   Serial.print(F(" Current="));
-  display_float(currentSense->smoothedValueFast(), -6, 2, &Serial);
+  display_float(currentSense->smoothedValueSlow(), -6, 2, &Serial);
   Serial.print(F(" AH="));
   double ah = current_amp_seconds / 3600.;
   display_float(ah, -8, 2, &Serial);
+  Serial.print(F(" RPiOn="));
+  Serial.print(rpi_powered_on);
+  Serial.print(F(" AmpSecDelta="));
+  display_float((current_amp_seconds - last_amp_seconds), -8, 4, &Serial);
   Serial.printf(F(" StateTime=%lu UpTime=%lu\n"), (now - last_state_change), now);
-  Serial.flush();
+
+  last_amp_seconds = current_amp_seconds;
 }
 
 /******************
@@ -954,17 +1040,20 @@ void setup() {
 
   analogReference(EXTERNAL);
   pinMode(A0, INPUT); // Battery voltage
-  pinMode(A1, INPUT); // Supply voltage
+  pinMode(A1, INPUT); // Load Current
+  pinMode(A2, INPUT); // Temperature voltage
+  pinMode(A3, INPUT); // Supply voltage
+
   pinMode(STATUS_LED, OUTPUT);
   pinMode(BATTERY_PIN, OUTPUT);  
   pinMode(SUPPLY_PIN, OUTPUT);  
-  pinMode(RPI_SIG_PIN, OUTPUT);
   pinMode(RPI_PWR_PIN, OUTPUT);
+  pinMode(RPI_SHUTDOWN_PIN, INPUT); // Leave this floating when we're not pulling it low
+  pinMode(RPI_POWEROFF_PIN, INPUT);
 
-  digitalWrite(SUPPLY_PIN, HIGH); // TODO invert these!
+  digitalWrite(SUPPLY_PIN, HIGH);
   digitalWrite(BATTERY_PIN, LOW); // If the uC has power, there is a battery! Start off with battery connected
-  digitalWrite(RPI_SIG_PIN, HIGH);
-  digitalWrite(RPI_PWR_PIN, HIGH);
+  digitalWrite(RPI_PWR_PIN, LOW);
 
   if(!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
     Serial.println(F("SSD1306 allocation failed"));
@@ -1036,6 +1125,26 @@ void loop() {
   state = next_state(now, temperature, state);
   apply_state(now, state);
 
+  if (state == ShutdownComplete) {
+    // Flash the status LED so users know we're alive
+    digitalWrite(STATUS_LED, HIGH);
+    delay(50);
+    digitalWrite(STATUS_LED, LOW);
+
+    // Low power mode will mess with millis(). The ShutdownComplete state ignores time
+    // and only considers the instantaneous value of the ADC for the battery voltage.
+    LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
+    
+    // After one sleep, clear the display
+    display.clearDisplay();
+    display.display();
+    display.dim(true);
+
+    // Read the battery voltate to give us a chance to wakeup
+    read_voltage(A0, batteryVoltage);
+    return;
+  }
+
   if (last_state_change == now) {
     serial_print(now);
   }
@@ -1051,18 +1160,11 @@ void loop() {
     double current_sec = (now - last_adc_read) / 1000.;
     current_amp_seconds += (currentSense->smoothedValueFast() * current_sec);
     last_adc_read = now;
+
+    read_rpi_power_state();
   }
 
-  if (state == BatteryLowTrip) {
-    //display.dim(true);
-    //display.clearDisplay();
-    //display.display();
-    // TODO low power mode will mess with millis(), which causes the state transitions
-    // to get delayed. Add a LowPowerMode to the state machine and account for timing 
-    // discrepancy there.
-    //LowPower.powerDown(SLEEP_1S, ADC_OFF, BOD_OFF);
-    //return;
-  }
+
 
   // Output to Serial occasionally
   if ((now - last_serial_write) > 2000) {
