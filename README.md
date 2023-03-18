@@ -37,6 +37,18 @@ Labels:
 * C: 12-pin connector to control board
 
 
+Three p-channel mosfet switches are utilized to connect various loads to one of two DC power sources. 
+Loads connected to the "L" terminal are either connected to the Power Supply "S" via S1, the Battery 
+"B" via S2, or they are disconnected. A separate lower-current switch S3 is used for critical loads, 
+such as a RaspberryPi or other low power control circuit.
+
+S1 and S2 are high powered DPAK mosfets with a very low on-resistance.
+
+All connected supplies and loads share a common ground. This ground is also shared with the control board. 
+If a RaspberryPi (or other device) is monitoring the serial output of the control board, it must also share
+this common ground.
+
+
 Control board layout
 
 ```
@@ -57,16 +69,7 @@ Labels:
 * R: Rotary encoder with switch
 
 
-Three p-channel mosfet switches are utilized to connect various loads to one of two DC power sources. 
-Loads connected to the "L" terminal are either connected to the Power Supply "S" via S1, the Battery 
-"B" via S2, or they are disconnected. A separate lower-current switch S3 is used for critical loads, 
-such as a RaspberryPi or other low power control circuit.
 
-S1 and S2 are high powered DPAK mosfets with a very low on-resistance.
-
-All connected supplies and loads share a common ground. This ground is also shared with the control board. 
-If a RaspberryPi (or other device) is monitoring the serial output of the control board, it must also share
-this common ground.
 
 
 # Modes of operation
