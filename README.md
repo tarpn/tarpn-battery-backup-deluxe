@@ -34,6 +34,8 @@ Labels:
 * S1: Supply Switch
 * S2: Battery Switch
 * S3: Critical Load Switch
+* C: 12-pin connector to control board
+
 
 Control board layout
 
