@@ -39,8 +39,8 @@ Labels:
 
 Three p-channel mosfet switches are utilized to connect various loads to one of two DC power sources. 
 Loads connected to the "L" terminal are either connected to the Power Supply "S" via S1, the Battery 
-"B" via S2, or they are disconnected. A separate lower-current switch S3 is used for critical loads, 
-such as a RaspberryPi or other low power control circuit.
+"B" via S2, or they are disconnected. A separate low power switch S3 is used for critical loads, 
+such as a RaspberryPi or other low power control circuits.
 
 S1 and S2 are high powered DPAK mosfets with a very low on-resistance.
 
@@ -115,6 +115,11 @@ under-voltage. In these two cases, the battery is disconnected from the loads.
 A temperature sensor is used to monitor the temperature of the PCB near the mosfet switches. If a high
 temperature is detected, the switches are both opened to prevent the mosfets from over-heating and failing.
 
+* S1: open 
+* S2: open
+* S3: closed
+
+
 # Configuration
 
 TODO
@@ -127,6 +132,12 @@ TODO
 
 TODO
 
-* S1: open 
-* S2: open
-* S3: closed
+
+
+
+
+
+
+
+
+
