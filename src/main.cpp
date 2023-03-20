@@ -104,7 +104,8 @@ enum State {
   OverTemp,         // 9
   OverTempRecovery, // 10
   BeginShutdown,    // 11
-  ShutdownComplete  // 12
+  RPiShutdown,      // 12
+  ShutdownComplete  // 13
 };
 
 const char state_0[] PROGMEM = "Null";
@@ -119,11 +120,13 @@ const char state_8[] PROGMEM = "BatteryHighTrip";
 const char state_9[] PROGMEM = "OverTemp";
 const char state_10[] PROGMEM = "OverTempRecovery";
 const char state_11[] PROGMEM = "BeginShutdown";
-const char state_12[] PROGMEM = "ShutdownComplete";
+const char state_12[] PROGMEM = "RPiShutdown";
+const char state_13[] PROGMEM = "ShutdownComplete";
 
 const char* const states[] PROGMEM = {
   state_0, state_1, state_2, state_3, state_4, state_5,
-  state_6, state_7, state_8, state_9, state_10, state_11, state_12
+  state_6, state_7, state_8, state_9, state_10, state_11, 
+  state_12, state_13
 };
 
 enum Messages {
@@ -261,9 +264,11 @@ bool config_mode_enabled = false;
 bool long_press_captured = false;
 uint8_t display_choice = 0;
 Messages error_code = NoMessage;
+Messages display_error_code = NoMessage;
 long last_error_display = 0;
 
 double current_amp_seconds = 0;
+double current_watt_seconds = 0;
 
 long last_blink_off = -1; // if not -1, flash off
 long last_blink_on = -1;  // if not -1, flash on
@@ -285,7 +290,7 @@ void shutdown_rpi() {
 /**
  * Basic blink/pulse routine. On for 400ms, off for 100ms. Used to flash a single character on the OLED on/off.
  */
-boolean do_blink(long now) {
+boolean do_blink(long now, uint16_t on_ms, uint16_t off_ms) {
   if (last_blink_off == -1 && last_blink_on == -1) {
     last_blink_on = now;
     return true;
@@ -293,7 +298,7 @@ boolean do_blink(long now) {
 
   if (last_blink_on == -1) {
     // flash is off
-    if ((now - last_blink_off) > 100) {
+    if ((now - last_blink_off) > off_ms) {
       last_blink_on = now;
       last_blink_off = -1;
       return true;
@@ -302,7 +307,7 @@ boolean do_blink(long now) {
   }
 
   if (last_blink_off == -1) {
-    if ((now - last_blink_on) > 400) {
+    if ((now - last_blink_on) > on_ms) {
       last_blink_on = -1;
       last_blink_off = now;
       return false;
@@ -340,26 +345,33 @@ double read_temp() {
  *******************************************************************************/
 
 /**
- * Determine if a state change is needed. If a change is needed, set last_state_change to now. This function does 
- * not actually open or close the switches, it just determines the correct internal state. See "apply_state" for
- * updating the three output pins based on the state.
+ * Determine if a state change is needed based on the sensor data. If a state changes is needed, this routine
+ * updates the global "state" variable as well as "last_state_change". This routine does not actually change any
+ * digital output signals, rather it determines the correct internal state. See "apply_state" for
+ * updating the output signals based on the internal state.
+ * 
+ * Returns true if the state was updated, false otherwise.
  */
-State next_state(long now, double temp, State state) {
-  if (state != Initializing &&
-      state != OverTemp &&
-      state != BeginShutdown &&
-      state != ShutdownComplete &&
+bool next_state(long now, double temp) {
+  State current_state = state;
+
+  if (current_state != Initializing &&
+      current_state != OverTemp &&
+      current_state != BeginShutdown &&
+      current_state != ShutdownComplete &&
       temp >= configs.overtemp_cutoff) {
     // Over temp logic applies to most states, so do it separately.
     last_state_change = now;
     error_code = OverTempMessage;
-    return OverTemp;
+    state = OverTemp;
+    return true;
   }
 
+  double load_voltage_drop_max = currentSense->instantValue() * 0.05;
   int current_state_ms = now - last_state_change;
   State next_state = Null;
 
-  switch (state) {
+  switch (current_state) {
   case Null:  
     // Shouldn't be possible, but just transition to Initializing
     next_state = Initializing;
@@ -382,7 +394,6 @@ State next_state(long now, double temp, State state) {
       the configured standby voltage minus the expected max voltage drop, then we are experiencing a 
       supply loss.
     */    
-    double load_voltage_drop_max = currentSense->instantValue() * 0.05;
     if ((supplyVoltage->instantValue() + load_voltage_drop_max) < configs.standby_voltage) {
       error_code = LowSupplyVoltageMessage;
       next_state = Backup;
@@ -449,11 +460,17 @@ State next_state(long now, double temp, State state) {
     break;
   case BeginShutdown:
     if (current_state_ms > 10000 || !rpi_powered_on) {
+      error_code = RPIShutdownMessage;
+      next_state = RPiShutdown;
+    }
+    break;
+  case RPiShutdown:
+    if (current_state_ms > 10000) {
       // Transition to low power mode here
       display.clearDisplay();
       display.setCursor(0, 0);
       display.setTextSize(2);
-      display.print("Low power\nmode");
+      display.print(F("Shutting\nDown..."));
       display.display();
       display.dim(true);
       next_state = ShutdownComplete;
@@ -461,33 +478,51 @@ State next_state(long now, double temp, State state) {
     break;
   case ShutdownComplete:
     if (batteryVoltage->instantValue() >= configs.batt_low_voltage_recovery) {
+      display.dim(false);
       next_state = Backup;
     }
     break;
   }
 
   if (next_state == Null) {
-    return state;
+    return false;
   } else {
     last_state_change = now;
-    return next_state;
+    state = next_state;
+    return true;
   }
 }
 
-/**
- * Test if the both switches are open. This means the load is disconnected and parts of the board are unpowered.
- */
-bool is_load_disconnected(State state) {
+bool is_battery_connected(State state) {
   switch (state) {
-    case BatteryLowTrip:
-    case OverTemp:
-    case OverTempRecovery:
-    case BatteryHighTrip:
-    case BeginShutdown:
-    case ShutdownComplete:
-      return false;
-    default:
+    case Backup:
+    case Recovery:
+    case BatteryLow:
+    case BatteryHigh:
       return true;
+    default:
+      return false;
+  }
+}
+
+bool is_supply_connected(State state) {
+  switch (state) {
+    case Initializing:
+    case Standby:
+      return true;
+    default:
+      return false;
+  }
+}
+
+bool in_shutdown_sequence(State state) {
+  switch (state) {
+    case BeginShutdown:
+    case RPiShutdown:
+    case ShutdownComplete:
+      return true;
+    default:
+      return false;
   }
 }
 
@@ -679,7 +714,7 @@ void adjust_set_levels(long now, UserEvent event, bool levelsOrTune, uint8_t cho
   display.print(F(" ")); 
   display_float(val, 5, staticConfigSRAM.decimal_places, &display);
   uint8_t blink_pos;
-  if (!do_blink(now)) {
+  if (!do_blink(now, 400, 100)) {
     uint8_t last_place = 84; // width is 5 characters (60px), right aligned
     blink_pos = last_place - (exponent * 12);
     if (staticConfigSRAM.decimal_places > 0) {
@@ -806,8 +841,7 @@ void display_config(long now, UserEvent event) {
           error_code = EEPROMResetMessage;
           break;
         case 5:
-          //shutdown_rpi();
-          digitalWrite(RPI_PWR_PIN, HIGH);
+          shutdown_rpi();
           error_code = RPIShutdownMessage;
           break;
         case 6:
@@ -886,50 +920,83 @@ void display_config(long now, UserEvent event) {
   }
 }
 
+void display_icons(long now) {
+  display.drawBitmap(96, 0, battery_glyph, 12, 18, WHITE);
+  display.drawBitmap(116, 0, ac_glyph, 12, 18, WHITE);
+  if (rpi_powered_on) {
+    display.drawBitmap(110, 12, pi_glyph, 4, 4, WHITE);
+  }
+
+  bool batt = is_battery_connected(state);
+  bool supp = is_supply_connected(state); 
+  bool draw_radio = batt | supp;
+  if (do_blink(now, 1000, 200)) {
+    if (batt) {
+      display.drawLine(98, 19, 98, 27, WHITE); // |
+      display.drawLine(99, 28, 103, 28, WHITE); // --
+    } else if (supp) {
+      display.drawLine(126, 19, 126, 27, WHITE); // |
+      display.drawLine(125, 28, 121, 28, WHITE); // --
+    } else {
+      // neither connected
+      draw_radio = true;
+    }
+  }
+
+  if (draw_radio) {
+    display.drawBitmap(104, 20, radio_glyph, 16, 12, WHITE);
+  }
+}
+
 void display_message(long now, UserEvent event) {
   display.clearDisplay();  
   display.setTextColor(SSD1306_WHITE);
-  display.setCursor(0, 0);
-  display.setTextSize(2);
-  switch (error_code) {
+  display.setCursor(0, 0);  
+  display.setTextSize(3);
+  display.print("E");
+  display.print(display_error_code);
+
+  display.setTextSize(1);
+  display.setCursor(0, 24);
+
+  switch (display_error_code) {
     case NoMessage:
       break;
     case SupplyRecovered:
-      display.println(F("Supply\nDetected"));
+      display.println(F("Supply Restored"));
       break;
     case LowSupplyVoltageMessage:
-      display.println(F("Low Supply\nVoltage"));
+      display.print(F("No Supply"));
       break;
     case LowBatteryVoltageMessage:
-      display.println(F("Battery\nUndervolt"));
+      display.print(F("Low Battery"));
       break;
     case HighBatteryVoltageMessage:
-      display.println(F("Battery\nOvervolt"));
+      display.print(F("High Battery"));
       break;
     case OverTempMessage:
-      display.println(F("Over Temp"));
+      display.print(F("Over Temp"));
       break;
     case EEPROMSavedMessage:
-      display.println(F("EEPROM\nsaved"));
+      display.print(F("EEPROM saved"));
       break;
     case EEPROMResetMessage:
-      display.println(F("EEPROM\nreset"));
+      display.print(F("EEPROM reset"));
       break;
     case RPIShutdownMessage:
-      display.println(F("RPI is\nshutdown"));
+      display.print(F("RPi Shutdown"));
       break;
     case ShutdownMessage:
-      display.println(F("Shutting\ndown RPi"));
+      display.print(F("Shutdown RPi"));
       break;
     default:
-      display.println(F("Message "));
-      display.println(error_code);
+      display.print(F("Unknown"));
       break;
   }
-  display.display();
-  error_code = NoMessage;
-}
 
+  display_icons(now);
+  display.display();
+}
 
 void display_main(long now, UserEvent event) {
   if (event == SCROLL_RIGHT) {
@@ -984,7 +1051,9 @@ void display_main(long now, UserEvent event) {
   display.setCursor(0, 24);
   strcpy_P(label_buffer, (char*)pgm_read_word(&(labels[label_index])));
   display.print(label_buffer);
-
+  display_icons(now);
+  
+  /*
   // Debug output (on the right)
   display.setTextSize(1);
   display.setCursor(96, 0);
@@ -1000,6 +1069,7 @@ void display_main(long now, UserEvent event) {
   display.setCursor(96, 24);
   display.print(F("|"));
   display_float(display_voltage->adcVoltageSlow(), 4, 2, &display);
+  */  
   display.display();
 }
 
@@ -1009,28 +1079,67 @@ void display_main(long now, UserEvent event) {
  * is used in order to capture intermittent values (e.g., current spikes). 
  */
 double last_amp_seconds = 0.0;
+double last_watt_seconds = 0.0;
+long last_serial_print = 0;
+
 
 void serial_print(long now) {
   strcpy_P(label_buffer, (char*)pgm_read_word(&(states[state])));
   Serial.printf(F("%-16s"), label_buffer);
+  
   Serial.print(F(" Battery="));
-  display_float(batteryVoltage->smoothedValueSlow(), -7, 3, &Serial);
+  display_float(batteryVoltage->smoothedValueFast(), -7, 3, &Serial);
+  
   Serial.print(F(" Supply="));
-  display_float(supplyVoltage->smoothedValueSlow(), -7, 3, &Serial);
-  Serial.print(F(" Temperature="));
-  display_float(temperature, -6, 3, &Serial);
-  Serial.print(F(" Current="));
-  display_float(currentSense->smoothedValueSlow(), -6, 2, &Serial);
-  Serial.print(F(" AH="));
-  double ah = current_amp_seconds / 3600.;
-  display_float(ah, -8, 2, &Serial);
+  display_float(supplyVoltage->smoothedValueFast(), -7, 3, &Serial);
+  
   Serial.print(F(" RPiOn="));
   Serial.print(rpi_powered_on);
-  Serial.print(F(" AmpSecDelta="));
-  display_float((current_amp_seconds - last_amp_seconds), -8, 4, &Serial);
-  Serial.printf(F(" StateTime=%lu UpTime=%lu\n"), (now - last_state_change), now);
 
-  last_amp_seconds = current_amp_seconds;
+  Serial.printf(F(" StateTime=%lu UpTime=%lu"), (now - last_state_change), now);
+
+  if (state == Initializing) {
+    // Avoid printing out weird current and temperature when first starting
+    Serial.println();
+    return;
+  }  
+
+  if (is_battery_connected(state) || is_supply_connected(state)) {
+    Serial.print(F(" Temperature="));
+    display_float(temperature, -6, 3, &Serial);
+  
+    Serial.print(F(" Current="));
+    display_float(currentSense->smoothedValueFast(), -6, 2, &Serial);
+    
+    Serial.print(F(" AH="));
+    double ah = current_amp_seconds / 3600.;
+    display_float(ah, -8, 2, &Serial);
+
+    // Return the amount of Amp-seconds since the last report. Summing
+    // these values over a period of time and converting to Amp-hours
+    // will give an accurate view of the charge consumption.
+    Serial.print(F(" AmpSecDelta="));
+    double amp_sec = (current_amp_seconds - last_amp_seconds);
+    display_float(amp_sec, -8, 4, &Serial);
+    last_amp_seconds = current_amp_seconds;
+
+    // Take the accumulated "current_amp_sec" since the last report
+    // and devide by the time since the last report. This gives us a
+    // much better view of amps than just the current value or even the EWMA.
+    Serial.print(F(" AmpAvg="));  
+    double dt = (now - last_serial_print) / 1000.0;
+    double amps = amp_sec / dt;
+    display_float(amps, -8, 4, &Serial);
+
+    // Similarly, divide the accumulated Watt-seconds by the duration of this
+    // report. This gives a propertly averaged power.
+    Serial.print(F(" PowerAvg="));
+    double watt_sec = (current_watt_seconds - last_watt_seconds);
+    double watts = watt_sec / dt;
+    display_float(watts, -8, 4, &Serial);
+  }
+  Serial.println();
+  last_serial_print = now;
 }
 
 /******************
@@ -1135,18 +1244,23 @@ void loop() {
   read_voltage(A3, supplyVoltage);
 
   // Evaluate the state machine and change the output state
-  state = next_state(now, temperature, state);
+  boolean changed_state = next_state(now, temperature);
   apply_state(now, state);
+  if (changed_state) {
+    serial_print(now);
+    last_serial_write = now;
+  }
 
   if (state == ShutdownComplete) {
-    // Flash the status LED so users know we're alive
-    digitalWrite(STATUS_LED, HIGH);
-    delay(50);
-    digitalWrite(STATUS_LED, LOW);
 
     // Low power mode will mess with millis(). The ShutdownComplete state ignores time
     // and only considers the instantaneous value of the ADC for the battery voltage.
     LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
+
+    // Flash the status LED so users know we're alive
+    digitalWrite(STATUS_LED, HIGH); 
+    delay(50);
+    digitalWrite(STATUS_LED, LOW);
     
     // After one sleep, clear the display
     display.clearDisplay();
@@ -1156,10 +1270,6 @@ void loop() {
     // Read the battery voltage to give us a chance to wakeup
     read_voltage(A0, batteryVoltage);
     return;
-  }
-
-  if (last_state_change == now) {
-    serial_print(now);
   }
 
   // Only read the ADCs every so often
@@ -1172,15 +1282,20 @@ void loop() {
     temperature = read_temp();
     double current_sec = (now - last_adc_read) / 1000.;
     current_amp_seconds += (currentSense->smoothedValueFast() * current_sec);
-    last_adc_read = now;
+    if (is_battery_connected(state)) {
+      current_watt_seconds += (currentSense->smoothedValueFast() * batteryVoltage->smoothedValueFast() * current_sec);
+    } else if (is_supply_connected(state)) {
+      current_watt_seconds += (currentSense->smoothedValueFast() * supplyVoltage->smoothedValueFast() * current_sec);
+    }
 
+    last_adc_read = now;
     read_rpi_power_state();
   }
 
-
-
   // Output to Serial occasionally
   if ((now - last_serial_write) > 2000) {
+    // TODO figure out how to do non-blocking serial. If our voltage drops during this print, there will be
+    // a delay in the switching
     serial_print(now);
     last_serial_write = now;
   } 
@@ -1216,15 +1331,26 @@ void loop() {
   // Choose a display mode
   if (error_code != NoMessage) {
     // If there's a new error code, display it
+    display_error_code = error_code;
+    error_code = NoMessage;
     last_error_display = now;
-    display_message(now, event);
   } else { 
-    if (event == NONE && (now - last_error_display) < 2000) {
-      // Display error messsage for 2 seconds unless we get user input
+    if (display_error_code != NoMessage && event == NONE && (now - last_error_display) < 2000) {
+      // Display error messsage for 2 seconds unless we get user input      
+      display_message(now, event);
       return;
+    } else {
+      display_error_code = NoMessage;
     }
 
-    if (config_mode_enabled) {
+    if (in_shutdown_sequence(state)) {
+      display.clearDisplay();
+      display.setTextSize(2);
+      display.setCursor(0, 0);
+      display.print("/o_o\\");
+      display_icons(now);
+      display.display();
+    } else if (config_mode_enabled) {
       display_config(now, event);
     } else {
       display_main(now, event);
