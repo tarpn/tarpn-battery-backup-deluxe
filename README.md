@@ -1,16 +1,34 @@
-# TARPN Battery Backup
+# TARPN Battery Backup Deluxe
 
-This project is a DC power monitoring and backup system intended for use with TARPN nodes. It consists of two PCBs,
-firmware for an ATMega328p, a Python script, and off-the-shelf open source monitoring software.
+The Battery Backup Deluxe (BDD) is a system that monitors and switches DC power between a 
+power supply and a battery. It is a bespoke power management solution for multi-port packet
+radio nodes in the [TARPN project](http://tarpn.net).
 
-The control PCB monitors battery voltage, power supply voltage, temperature, and load current. It manages two high
-powered switches on the power PCB which control whether the loads are connected to the power supply, battery, or neither.
+Features:
+* Automatic switchover to battery
+* Battery protection (low/high voltage cutoff)
+* Over-temperature cutoff
+* Separate switching of low powered micro electronics and high powered loads
+* Safe shutdown procedure of RaspberryPi
 
-A separate low powered switch is used to control the 12V supply for the RaspberryPi. 
+Non-Features:
+* Battery charging
+* Solar panel integration
+* Load fusing
 
-# PCB Overview
+Two custom PCBs are employed for voltage sensing, switching, and control. The two boards are
+referred to as the Power Board and the Control Board. The Power Board connects to a power supply,
+a battery, the loads, a regulator for a RaspberryPi, and the Control Board. The Control Board
+connects to a RaspberryPi. 
+
+# Connections
 
 ![IMG_0660](https://user-images.githubusercontent.com/55116/211970858-cadd3850-cdff-4307-b690-b1d392b2d327.jpg)
+
+The 6 terminal lugs are labeled.
+
+
+# PCB Overview
 
 Power board layout
 
