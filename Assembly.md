@@ -20,7 +20,7 @@ The general sequence of assembly for the Power Board is:
 * Terminal Lugs
 * F1 connectors
 * Resistors
-* Ceremic capacitors
+* Ceramic capacitors
 * TO-92 parts
 * TO-220 parts
 * Electrolytic capacitors
@@ -52,7 +52,7 @@ existing solder starts to flow, apply fresh solder until adequate fillets are pr
 ## Mosfet jumpers
 
 Two copper jumpers can be installed to improve the ampacity of the Power Board. A gauge is provided on the edge of the
-Power Board to help form the jumpers. The jumper holes are 2.6mm which will accomodate 10 AWG wire. If the jumper is
+Power Board to help form the jumpers. The jumper holes are 2.6mm which will accommodate 10 AWG wire. If the jumper is
 installed, apply enough solder to create a fillet between the jumper and the mosfet leg.
 
 ## SMD Resistor (R3) soldering
@@ -72,13 +72,13 @@ The hole pattern is 43mm by 43mm on center.
 ![Power Board Back](https://github.com/tarpn/tarpn-battery-backup-deluxe/blob/main/images/PowerBoardBackLowRes.jpg)
 
 This mounting pattern will accommodate any of the 50x50mm pushPIN™ Heat Sink series from Advanced Thermal Solutions, Inc.
-One such heatsink is included in the BOM (with a quanitiy of zero). If ordering a heat sink, be sure to also order two
+One such heatsink is included in the BOM (with a quantity of zero). If ordering a heat sink, be sure to also order two
 units of the push pins. Each unit of push pins includes two pins, so two units gives the requisite four push pins.
 
 Since the back of the PCB has exposed copper, a thermal pad is required to avoid shorting the mosfets with the 
 heat sink. Also, since the heatsink area includes many through-hole pads, the thermal pad must be thick enough
 to keep the heatsink flat. A pad of at least 1mm thickness is needed. The leads of the through-hole parts in the
-heatsink aread should be trimmed flush with the solder fillet (not flush with the board). Trimming the leads will
+heatsink area should be trimmed flush with the solder fillet (not flush with the board). Trimming the leads will
 avoid having their sharp ends exposed which could pierce the thermal pad and contact the heatsink.
 
 
