@@ -10,13 +10,13 @@ Required tools:
 Several assembly steps for the Power Board require very high heat. A silicone mat is needed to protect your work surface. 
 Be careful handling the PCB in between assembly steps.
 
-The general sequence of assembly is:
+The general sequence of assembly for the Power Board is:
 
 * SMD parts
   * R3
   * Q1, Q2, Q5, Q6
-  * Q1 to Q2 jumper
-  * Q5 to Q6 jumper
+  * Q1 to Q2 jumper (optional)
+  * Q5 to Q6 jumper (optional)
 * Terminal Lugs
 * F1 connectors
 * Resistors
@@ -24,6 +24,7 @@ The general sequence of assembly is:
 * TO-92 parts
 * TO-220 parts
 * Electrolytic capacitors
+* Heat sink (optional)
 
 ## BOM
 
@@ -31,7 +32,8 @@ The Bill-Of-Materials for Digi-Key is located at this address https://www.digike
 parts will need to be sourced from other vendors.
 
 * Six (6) Terminal Lugs, part number B6A-PCB-RS from [LugsDirect](https://lugsdirect.com/IHI_HIGH_CURRENT_PCB-TERMINALS-_SELECTION_CHART2.htm)
-* i2c 128x32 OLED Display, Amazon/eBay/etc. [Example Listing](https://www.amazon.com/Pieces-Display-Module-SSD1306-3-3V-5V/dp/B08L7QW7SR) 
+* i2c 128x32 OLED Display, Amazon/eBay/etc. [Example Amazon Listing](https://www.amazon.com/Pieces-Display-Module-SSD1306-3-3V-5V/dp/B08L7QW7SR) 
+* Large thermal pad for heatsink [Example Amazon listing](https://www.amazon.com/gp/product/B09DC772PR)
 
 ## DPAK soldering
 
@@ -61,6 +63,23 @@ This resistor is essentially a chunk of copper with specific dimensions to give 
 For best results, this part should be soldered to the four pads of the footprint as evenly as possible. For best
 results, pre-solder a very small amount of solder to the four pads and clean them with IPA or flux remover. Visually
 inspect them to see that they are around the same height. Place the SMD resistor on the pads and apply hot air.
+
+## Heatsink
+
+To accommodate high current installations, the Power Board has mounting holes for a 50mm square heatsink. 
+The hole pattern is 43mm by 43mm on center.
+
+![Power Board Back](https://github.com/tarpn/tarpn-battery-backup-deluxe/blob/main/images/PowerBoardBackLowRes.jpg)
+
+This mounting pattern will accommodate any of the 50x50mm pushPIN™ Heat Sink series from Advanced Thermal Solutions, Inc.
+One such heatsink is included in the BOM (with a quanitiy of zero). If ordering a heat sink, be sure to also order two
+units of the push pins. Each unit of push pins includes two pins, so two units gives the requisite four push pins.
+
+Since the back of the PCB has exposed copper, a thermal pad is required to avoid shorting the mosfets with the 
+heat sink. Also, since the heatsink area includes many through-hole pads, the thermal pad must be thick enough
+to keep the heatsink flat. At least a 1mm thick pad is recommended. It is also recommended to trim the 
+through-hole leads flush with the solder fillet so they do not piece the thermal pad and contact the heatsink.
+
 
 
 
