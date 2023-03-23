@@ -1,7 +1,7 @@
 # Assembly
 
 Required tools:
-* Temperature controlled soldering station (e.g., Hakko FX888D)
+* Temperature controlled soldering station (e.g., Hakko FX888D, Weller WLC100)
 * Hot air rework station
 * Precision tweezers
 * Silicone work mat
@@ -63,6 +63,33 @@ This resistor is essentially a chunk of copper with specific dimensions to give 
 For best results, this part should be soldered to the four pads of the footprint as evenly as possible. For best
 results, pre-solder a very small amount of solder to the four pads and clean them with IPA or flux remover. Visually
 inspect them to see that they are around the same height. Place the SMD resistor on the pads and apply hot air.
+
+## Terminal Lugs
+
+The six terminal lugs are designed to be wave soldered, but hand soldering is also possible. These parts require
+the most heat of any in the assembly, so take care when handling the PCB during this step. Since these lugs are so
+large, it is necessary to place some supporting material under the PCB in order to balance it and keep it level. Scrap
+silicone work mat works nicely for this
+ 
+![Terminal Lug Assembly Top](https://github.com/tarpn/tarpn-battery-backup-deluxe/blob/main/images/TerminalLugAssemblyTop.jpg)
+
+![Terminal Lug Assembly Front](https://github.com/tarpn/tarpn-battery-backup-deluxe/blob/main/images/TerminalLugAssemblyFront.jpg)
+
+Remove the bolts from the lugs and place one of them upside down on the work surface. Balance the PCB on top of it using
+some supporting material as pictured above. Heat the soldering iron to 800-850F and apply some solder to the tip. 
+Begin heating the terminal lug and once the solder starts
+to transfer from the iron to the lug, begin heating the pad on the PCB. The terminal lug has very high thermal mass and will
+stay hot for a long time after pre-heating. Once solder begins to flow on the pad, apply around 30mm of solder (roughly
+three times the length of the pad). Drag the solder around the all edges where the terminal contacts the PCB. There should
+be enough solder to form a nice fillet along the two long edges of the terminal and to fill the gaps on either end.
+
+![Terminal Lug Close-up 1](https://github.com/tarpn/tarpn-battery-backup-deluxe/blob/main/images/Lug1.jpg)
+![Terminal Lug Close-up 2](https://github.com/tarpn/tarpn-battery-backup-deluxe/blob/main/images/Lug2.jpg)
+![Terminal Lug Close-up 3](https://github.com/tarpn/tarpn-battery-backup-deluxe/blob/main/images/Lug3.jpg)
+![Terminal Lug Close-up 4](https://github.com/tarpn/tarpn-battery-backup-deluxe/blob/main/images/Lug4.jpg)
+
+Repeat the process for the remaining 5 lugs.
+
 
 ## Heatsink
 
