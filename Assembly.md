@@ -77,18 +77,22 @@ silicone work mat works nicely for this
 
 Remove the bolts from the lugs and place one of them upside down on the work surface. Balance the PCB on top of it using
 some supporting material as pictured above. Heat the soldering iron to 800-850F and apply some solder to the tip. 
-Begin heating the terminal lug and once the solder starts
-to transfer from the iron to the lug, begin heating the pad on the PCB. The terminal lug has very high thermal mass and will
+Begin heating the terminal lug. This will take some time. Once the solder starts to transfer from the iron tip to the 
+lug surface, begin heating the pad on the PCB. The terminal lug has very high thermal mass and will
 stay hot for a long time after pre-heating. Once solder begins to flow on the pad, apply around 30mm of solder (roughly
 three times the length of the pad). Drag the solder around the all edges where the terminal contacts the PCB. There should
 be enough solder to form a nice fillet along the two long edges of the terminal and to fill the gaps on either end.
 
-![Terminal Lug Close-up 1](https://github.com/tarpn/tarpn-battery-backup-deluxe/blob/main/images/Lug1.jpg)
-![Terminal Lug Close-up 2](https://github.com/tarpn/tarpn-battery-backup-deluxe/blob/main/images/Lug2.jpg)
-![Terminal Lug Close-up 3](https://github.com/tarpn/tarpn-battery-backup-deluxe/blob/main/images/Lug3.jpg)
-![Terminal Lug Close-up 4](https://github.com/tarpn/tarpn-battery-backup-deluxe/blob/main/images/Lug4.jpg)
-
 Repeat the process for the remaining 5 lugs.
+
+Once the terminals and PCB have cooled enough to handle, clean the pads with IPA or flux cleaner. 
+
+Here are some close-ups showing an acceptable solder joint for a terminal lug:
+
+<img alt="Terminal Lug Close-up 1" src="https://github.com/tarpn/tarpn-battery-backup-deluxe/blob/main/images/Lug1.jpg" width="400"/>
+<img alt="Terminal Lug Close-up 2" src="https://github.com/tarpn/tarpn-battery-backup-deluxe/blob/main/images/Lug2.jpg" width="400"/>
+<img alt="Terminal Lug Close-up 3" src="https://github.com/tarpn/tarpn-battery-backup-deluxe/blob/main/images/Lug3.jpg" width="400"/>
+<img alt="Terminal Lug Close-up 4" src="https://github.com/tarpn/tarpn-battery-backup-deluxe/blob/main/images/Lug4.jpg" width="400"/>
 
 
 ## Heatsink
