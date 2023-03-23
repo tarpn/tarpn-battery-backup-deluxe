@@ -21,11 +21,14 @@ referred to as the Power Board and the Control Board. The Power Board connects t
 a battery, the loads, a regulator for a RaspberryPi, and the Control Board. The Control Board
 connects to a RaspberryPi. 
 
-# Connections
+# Images
+
+Power Board, bare PCB
+![Power Board PCB](https://github.com/tarpn/tarpn-battery-backup-deluxe/blob/main/images/PowerBoardHiRes.jpg)
+
+Power Board, assembled and installed
 
 ![IMG_0660](https://user-images.githubusercontent.com/55116/211970858-cadd3850-cdff-4307-b690-b1d392b2d327.jpg)
-
-The 6 terminal lugs are labeled.
 
 
 # PCB Overview
@@ -87,12 +90,9 @@ Labels:
 * R: Rotary encoder with switch
 
 
+# Control Board Modes
 
-
-
-# Modes of operation
-
-The digital electronics on the power board, the 5V regulator for the control board, and the critical load
+The digital electronics on the power board, the 5V regulator for the Control Board, and the critical load
 output are powered directly by the battery. 
 
 ## Standby
