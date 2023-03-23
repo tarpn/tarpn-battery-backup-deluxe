@@ -24,7 +24,7 @@ connects to a RaspberryPi.
 # Images
 
 Power Board, bare PCB
-![Power Board PCB](https://github.com/tarpn/tarpn-battery-backup-deluxe/blob/main/images/PowerBoardHiRes.jpg)
+![Power Board PCB](https://github.com/tarpn/tarpn-battery-backup-deluxe/blob/main/images/PowerBoardLoRes.jpg)
 
 Power Board, assembled and installed
 
