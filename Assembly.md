@@ -77,8 +77,9 @@ units of the push pins. Each unit of push pins includes two pins, so two units g
 
 Since the back of the PCB has exposed copper, a thermal pad is required to avoid shorting the mosfets with the 
 heat sink. Also, since the heatsink area includes many through-hole pads, the thermal pad must be thick enough
-to keep the heatsink flat. At least a 1mm thick pad is recommended. It is also recommended to trim the 
-through-hole leads flush with the solder fillet so they do not piece the thermal pad and contact the heatsink.
+to keep the heatsink flat. A pad of at least 1mm thickness is needed. The leads of the through-hole parts in the
+heatsink aread should be trimmed flush with the solder fillet (not flush with the board). Trimming the leads will
+avoid having their sharp ends exposed which could pierce the thermal pad and contact the heatsink.
 
 
 
