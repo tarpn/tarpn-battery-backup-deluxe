@@ -12,15 +12,16 @@ Be careful handling the PCB in between assembly steps.
 
 The general sequence of assembly for the Power Board is:
 
-* SMD parts
+* SMD parts 🔥
   * R3
   * Q1, Q2, Q5, Q6
   * Q1 to Q2 jumper (optional)
   * Q5 to Q6 jumper (optional)
-* Terminal Lugs
-* F1 connectors
-* Resistors
+* Resistors 
 * Ceramic capacitors
+* Terminal Lugs 🔥
+* F1 connectors 🔥
+* ICs
 * TO-92 parts
 * TO-220 parts
 * Electrolytic capacitors
@@ -37,6 +38,8 @@ parts will need to be sourced from other vendors.
 
 ## DPAK soldering
 
+🔥Hot Parts🔥
+
 ![DPAK Mosfets](https://github.com/tarpn/tarpn-battery-backup-deluxe/blob/main/images/PowerBoardLowRes%20DPAK.jpg)
 
 The four DPAK mosfet are best soldered with a high temperature (750-800F) iron with a large tip. Hot air can be useful as well.
@@ -51,11 +54,15 @@ existing solder starts to flow, apply fresh solder until adequate fillets are pr
 
 ## Mosfet jumpers
 
+🔥Hot Parts🔥
+
 Two copper jumpers can be installed to improve the ampacity of the Power Board. A gauge is provided on the edge of the
 Power Board to help form the jumpers. The jumper holes are 2.6mm which will accommodate 10 AWG wire. If the jumper is
 installed, apply enough solder to create a fillet between the jumper and the mosfet leg.
 
 ## SMD Resistor (R3) soldering
+
+🔥Hot Parts🔥
 
 ![R3](https://github.com/tarpn/tarpn-battery-backup-deluxe/blob/main/images/PowerBoardLowRes%20R3.jpg)
 
@@ -65,6 +72,8 @@ results, pre-solder a very small amount of solder to the four pads and clean the
 inspect them to see that they are around the same height. Place the SMD resistor on the pads and apply hot air.
 
 ## Terminal Lugs
+
+🔥Hot Parts🔥
 
 The six terminal lugs are designed to be wave soldered, but hand soldering is also possible. These parts require
 the most heat of any in the assembly, so take care when handling the PCB during this step. Since these lugs are so
@@ -94,6 +103,37 @@ Here are some close-ups showing an acceptable solder joint for a terminal lug:
 <img alt="Terminal Lug Close-up 3" src="https://github.com/tarpn/tarpn-battery-backup-deluxe/blob/main/images/Lug3.jpg" width="400"/>
 <img alt="Terminal Lug Close-up 4" src="https://github.com/tarpn/tarpn-battery-backup-deluxe/blob/main/images/Lug4.jpg" width="400"/>
 
+## Resistors
+
+Some of the resistors on the power board are high precision (0.1%)
+
+* 49.9 kOhm: R1,R6,R8
+* 10 kOhm: R2,R4,R9,R11
+* 259 Ohm: R5,R10
+
+These are mainly used as high precision voltage divider for accurate sensing of the temperature, voltage, and current.
+
+The remaining resistors on the power board are pull-ups, pull-downs, and current limiting resistors. These are 5% precision
+resistors.
+
+1 kOhm: R15, R17, R24, R27
+10 kOhm: R16, R21, R25, R28, R29, R30
+
+## Thermistor
+
+Install TH1.
+
+## Ceramic Capacitors
+
+Install the 0.1µF ceramic capators: C2, C12, C13
+
+## Fuse (F1)
+
+🔥Hot Parts🔥
+
+The F1 fuse footprint accepts two quick connect terminals. Insert the terminals on the top of the PCB according to the
+silkscreen and tack them into place from the top. This will secure the terminals well enough to fully solder from the bottom.
+When soldering, start on the pin that wasn't tacked from the top.  
 
 ## Heatsink
 
