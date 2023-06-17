@@ -370,7 +370,20 @@ State next_state(long now, double temp, State state) {
     }
     break;
   case Standby:
-    if (supplyVoltage->instantValue() < configs.standby_voltage) {
+    /*
+      Note on load spikes.
+
+      If we see a sudden voltage drop, it can be from either a supply loss or a sudden load spike.
+      We can estimate a maximum voltage drop due to load by looking at the current sensor. The FETs 
+      have around a 0.010 ohm resistance, so we expect around a 0.1V drop per 10A. Adding in a buffer 
+      for PCB trace, connector, and wire resistance, we estimate a total system resistance of 0.05 ohm.
+
+      While in Standby mode, the supply voltage is the load voltage. If we see supply voltage drop below
+      the configured standby voltage minus the expected max voltage drop, then we are experiencing a 
+      supply loss.
+    */    
+    double load_voltage_drop_max = currentSense->instantValue() * 0.05;
+    if ((supplyVoltage->instantValue() + load_voltage_drop_max) < configs.standby_voltage) {
       error_code = LowSupplyVoltageMessage;
       next_state = Backup;
     }
@@ -1140,7 +1153,7 @@ void loop() {
     display.display();
     display.dim(true);
 
-    // Read the battery voltate to give us a chance to wakeup
+    // Read the battery voltage to give us a chance to wakeup
     read_voltage(A0, batteryVoltage);
     return;
   }
