@@ -35,6 +35,7 @@ parts will need to be sourced from other vendors.
 * Six (6) Terminal Lugs, part number B6A-PCB-RS from [LugsDirect](https://lugsdirect.com/IHI_HIGH_CURRENT_PCB-TERMINALS-_SELECTION_CHART2.htm)
 * i2c 128x32 OLED Display, Amazon/eBay/etc. [Example Amazon Listing](https://www.amazon.com/Pieces-Display-Module-SSD1306-3-3V-5V/dp/B08L7QW7SR) 
 * Large thermal pad for heatsink [Example Amazon listing](https://www.amazon.com/gp/product/B09DC772PR)
+* 12 pin rectangular ribbon connector [Example Amazon listing](https://www.amazon.com/gp/product/B07FKPXML5)
 
 ## DPAK soldering
 
