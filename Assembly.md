@@ -33,8 +33,10 @@ The general sequence of assembly for the Power Board is according to height. Sho
 
 ## BOM
 
-The Bill-Of-Materials for Digi-Key is located at this address https://www.digikey.com/en/mylists/list/4BDBKJ7A9E. Two additional
-parts will need to be sourced from other vendors.
+The Bill-Of-Materials for Digi-Key is located at this address https://www.digikey.com/en/mylists/list/4BDBKJ7A9E. There are two
+optional parts in the BOM (heatsink and push-pins) with quantity zero.
+
+Some additional parts will need to be sourced from other vendors.
 
 * Six (6) Terminal Lugs, part number B6A-PCB-RS from [LugsDirect](https://lugsdirect.com/IHI_HIGH_CURRENT_PCB-TERMINALS-_SELECTION_CHART2.htm)
 * i2c 128x32 OLED Display, Amazon/eBay/etc. [Example Amazon Listing](https://www.amazon.com/Pieces-Display-Module-SSD1306-3-3V-5V/dp/B08L7QW7SR) 
