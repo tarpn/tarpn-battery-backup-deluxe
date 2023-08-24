@@ -7,24 +7,28 @@ Required tools:
 * Silicone work mat
 * Fume extractor (recommended)
 
-Several assembly steps for the Power Board require very high heat. A silicone mat is needed to protect your work surface. 
+Several assembly steps for the Power Board require very high heat. A silicone mat may be required to protect your work surface. 
 Be careful handling the PCB in between assembly steps.
 
-The general sequence of assembly for the Power Board is:
+The general sequence of assembly for the Power Board is according to height. Shorter parts are assembled first.
 
 * SMD parts 🔥
   * R3
   * Q1, Q2, Q5, Q6
   * Q1 to Q2 jumper (optional)
   * Q5 to Q6 jumper (optional)
-* Resistors 
-* Ceramic capacitors
+* Resistors, diodes, thermistor, ceramic capacitors
+* RN1
+* U7, U6, U4 (optionally, sockets for each)
+* D2, D4, D5, D6 (LEDs)
+* TO-92 parts
+* J12 (12 pin connector)
+* J13 (Terminal screw block)
+* 12V fan connector
+* C7, C1 (electrolytic capactitors)
 * Terminal Lugs 🔥
 * F1 connectors 🔥
-* ICs
-* TO-92 parts
-* TO-220 parts
-* Electrolytic capacitors
+* U2, Q3 (TO-220)
 * Heat sink (optional)
 
 ## BOM
@@ -34,8 +38,14 @@ parts will need to be sourced from other vendors.
 
 * Six (6) Terminal Lugs, part number B6A-PCB-RS from [LugsDirect](https://lugsdirect.com/IHI_HIGH_CURRENT_PCB-TERMINALS-_SELECTION_CHART2.htm)
 * i2c 128x32 OLED Display, Amazon/eBay/etc. [Example Amazon Listing](https://www.amazon.com/Pieces-Display-Module-SSD1306-3-3V-5V/dp/B08L7QW7SR) 
-* Large thermal pad for heatsink [Example Amazon listing](https://www.amazon.com/gp/product/B09DC772PR)
 * 12 pin rectangular ribbon connector [Example Amazon listing](https://www.amazon.com/gp/product/B07FKPXML5)
+
+Optional parts:
+* IC sockets [Example Amazon listing](https://www.amazon.com/Glarks-122Pcs-Sockets-Adaptor-Assortment/dp/B01GOLSUAU)
+* 12V fan (in BOM)
+* Heatsink (in BOM)
+* Large thermal pad for heatsink [Example Amazon listing](https://www.amazon.com/gp/product/B09DC772PR)
+
 
 ## DPAK soldering
 
@@ -72,6 +82,69 @@ For best results, this part should be soldered to the four pads of the footprint
 results, pre-solder a very small amount of solder to the four pads and clean them with IPA or flux remover. Visually
 inspect them to see that they are around the same height. Place the SMD resistor on the pads and apply hot air.
 
+## Resistors
+
+Some of the resistors on the power board are high precision (0.1%)
+
+* 49.9 kOhm: R1,R6,R8
+* 10 kOhm: R2,R4,R9,R11
+* 259 Ohm: R5,R10
+
+These are mainly used as high precision voltage divider for accurate sensing of the temperature, voltage, and current.
+
+The remaining resistors on the power board are pull-ups, pull-downs, and current limiting resistors. These are 5% precision
+resistors.
+
+1 kOhm: R15, R17, R24, R27
+10 kOhm: R16, R21, R25, R28, R29, R30
+
+## Diodes
+
+* D10
+* D1
+
+There are two diodes on the power board. They are different part numbers, so be careful not to mix them up. D10 is a 
+general recitfier diode, and D1 is a flyback diode for the fan.
+
+## Thermistor
+
+Install TH1. Try to ensure the part is flush with the board so it can accurately read the temperature of the PCB.
+
+## Ceramic Capacitors
+
+Install the 0.1µF ceramic capators: C2, C12, C13
+
+## Resistor Network RN1
+
+Install RN1. This resistor network is used by the status LEDs.
+
+## Integrated Circuits
+
+There are three ICs on the power board. Two of them (U6 and U7) have the same footprint, but are different parts. IC sockets 
+can optionally be installed at this point.
+
+## LEDs
+
+There are four status LEDs on this board. The three green LEDs are for +12V, +5V, and RPi. The yellow LED is for Battery.
+The long leg of the resistor goes on the right where the small "+" symbol is printed.
+
+## TO-92 packages
+
+There are four TO-92 parts. Three of them (Q4, Q7, Q8) are the same transistor and one is a precision voltage regulator (U1). 
+The three transistors are used to drive power mosfets which are used for 12V switching. The voltage regulator is used
+to provide a precise voltage to U4 in order to get accurate current sensing.
+
+## 12V Connectors
+
+Two connectors on the board provide 12V that can be switched off under low power conditions. These are used to power an 
+offboard DROK (or other buck converter) used by the RPi and to power an optional fan for cooling. 
+
+![IMG_1827](https://github.com/tarpn/tarpn-battery-backup-deluxe/assets/55116/91f7b736-8dd8-4073-9ee5-28d2dc243e90)
+
+## Electrolytic Capacitors
+
+Install C7 and C1.
+
 ## Terminal Lugs
 
 🔥Hot Parts🔥
@@ -104,30 +177,6 @@ Here are some close-ups showing an acceptable solder joint for a terminal lug:
 <img alt="Terminal Lug Close-up 3" src="https://github.com/tarpn/tarpn-battery-backup-deluxe/blob/main/images/Lug3.jpg" width="400"/>
 <img alt="Terminal Lug Close-up 4" src="https://github.com/tarpn/tarpn-battery-backup-deluxe/blob/main/images/Lug4.jpg" width="400"/>
 
-## Resistors
-
-Some of the resistors on the power board are high precision (0.1%)
-
-* 49.9 kOhm: R1,R6,R8
-* 10 kOhm: R2,R4,R9,R11
-* 259 Ohm: R5,R10
-
-These are mainly used as high precision voltage divider for accurate sensing of the temperature, voltage, and current.
-
-The remaining resistors on the power board are pull-ups, pull-downs, and current limiting resistors. These are 5% precision
-resistors.
-
-1 kOhm: R15, R17, R24, R27
-10 kOhm: R16, R21, R25, R28, R29, R30
-
-## Thermistor
-
-Install TH1.
-
-## Ceramic Capacitors
-
-Install the 0.1µF ceramic capators: C2, C12, C13
-
 ## Fuse (F1)
 
 🔥Hot Parts🔥
@@ -135,6 +184,13 @@ Install the 0.1µF ceramic capators: C2, C12, C13
 The F1 fuse footprint accepts two quick connect terminals. Insert the terminals on the top of the PCB according to the
 silkscreen and tack them into place from the top. This will secure the terminals well enough to fully solder from the bottom.
 When soldering, start on the pin that wasn't tacked from the top.  
+
+## TO-220 parts
+
+There are two TO-220 parts which look the same, but are different parts. U2 is a voltage regular and Q3 is a power mosfet. 
+Take care to not mix them up, also take care to install them in the correct orientation.
+
+![IMG_1828](https://github.com/tarpn/tarpn-battery-backup-deluxe/assets/55116/e007351a-79aa-4d0b-9121-228a976ff920)
 
 ## Heatsink
 
