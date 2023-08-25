@@ -48,6 +48,16 @@ Optional parts:
 * Heatsink (in BOM)
 * Large thermal pad for heatsink [Example Amazon listing](https://www.amazon.com/gp/product/B09DC772PR)
 
+## SMD Resistor (R3) soldering
+
+🔥Hot Parts🔥
+
+![R3](https://github.com/tarpn/tarpn-battery-backup-deluxe/blob/main/images/PowerBoardLowRes%20R3.jpg)
+
+This resistor is essentially a chunk of copper with specific dimensions to give a good precision small resistance.
+For best results, this part should be soldered to the four pads of the footprint as evenly as possible. For best
+results, pre-solder a very small amount of solder to the four pads and clean them with IPA or flux remover. Visually
+inspect them to see that they are around the same height. Place the SMD resistor on the pads and apply hot air.
 
 ## DPAK soldering
 
@@ -72,17 +82,6 @@ existing solder starts to flow, apply fresh solder until adequate fillets are pr
 Two copper jumpers can be installed to improve the ampacity of the Power Board. A gauge is provided on the edge of the
 Power Board to help form the jumpers. The jumper holes are 2.6mm which will accommodate 10 AWG wire. If the jumper is
 installed, apply enough solder to create a fillet between the jumper and the mosfet leg.
-
-## SMD Resistor (R3) soldering
-
-🔥Hot Parts🔥
-
-![R3](https://github.com/tarpn/tarpn-battery-backup-deluxe/blob/main/images/PowerBoardLowRes%20R3.jpg)
-
-This resistor is essentially a chunk of copper with specific dimensions to give a good precision small resistance.
-For best results, this part should be soldered to the four pads of the footprint as evenly as possible. For best
-results, pre-solder a very small amount of solder to the four pads and clean them with IPA or flux remover. Visually
-inspect them to see that they are around the same height. Place the SMD resistor on the pads and apply hot air.
 
 ## Resistors
 
