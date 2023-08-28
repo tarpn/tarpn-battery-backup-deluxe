@@ -146,16 +146,45 @@ TODO
 
 TODO
 
-# RaspberryPi Clean Shutdown
+# RaspberryPi Interface
 
-TODO
+J8 on the control board connects to pins 1 through 10 on the RaspberryPi. 
+
+| Pin | RPi signal | Control board signal |
+| --- | ---------- | -------------------- |
+| 1   | +3V3       | used for pullup of pin 5 |
+| 2   | +5V        | unused |
+| 3   | GPIO 2     | RPI_PWR_INDICATOR (active low) |
+| 4   | +5V        | unused |
+| 5   | GPIO 3     | RPI_SIG (active low) |
+| 6   | Ground     | Ground |
+| 7   | GPIO 4     | unused† |
+| 8   | GPIO 14    | RXD (serial) |
+| 9   | Ground     | Ground |
+| 10  | GPIO 15    | TXD (serial) |
+
+† This pin is sometimes cut on older TARPN installations
 
 
+The RPI_SIG signal is used to trigger a shutdown of the RPi. When this signal is momentarily pulled low the RPi 
+will perform a safe shutdown. A pull-up resistor between RPi pin 5 and RPi pin 1 is used to prevent this
+signal from floating.
+
+The RPI_PWR_INDICATOR is used to inform the control board whether or not the RPi has power. When this signal is
+low, the RPi is powered on. This signal allows the control board to determine when the RPi has powered off 
+following a safe shutdown.
+
+RXD and TXD are used for serial communication from the control board to the RPi. This is used for exporting
+telemetry from the control board.
 
 
+To enable the functions of RPI_SIG and RPI_PWR_INDICATOR, two special configurations are needed on the RPi.
+In the /boot/config.txt file, add the following lines below the comment "# Additional overlays and parameters are documented /boot/overlays/README":
 
+```
+dtoverlay=gpio-poweroff,gpiopin=2,active_low=1
+dtoverlay=gpio-shutdown,gpio_pin=3,active_low=1,gpio_pull=up
+```
 
-
-
-
+This can be done when preparing the SD card or on a running RPi. A reboot is necessary for the changes to take affect.
 
