@@ -2,7 +2,7 @@ import os
 from setuptools import setup, find_packages
 
 setup(
-    name='tarpn-bdd',
+    name='tarpn-bbd',
     use_scm_version = {
         "root": "..",
         "relative_to": __file__,
@@ -11,8 +11,8 @@ setup(
     setup_requires=['setuptools_scm'],
     packages=find_packages(),
     data_files=[
-        ("config", ["config/bdd.ini.sample", "config/logging.ini"]),
-        ("scripts", ["scripts/tarpn-bdd-scraper.service"])
+        ("config", ["config/bbd.ini.sample", "config/logging.ini"]),
+        ("scripts", ["scripts/tarpn-bbd-scraper.service"])
     ],
     url='https://github.com/tarpn/tarpn-battery-backup-deluxe',
     license='MIT License',
@@ -23,7 +23,7 @@ setup(
    
     entry_points={
              'console_scripts': [
-                 'tarpn-bdd-scrape = tarpn_bdd:main'
+                 'tarpn-bbd-scrape = tarpn_bbd:main'
              ]},
     python_requires='>=3.7',
 
