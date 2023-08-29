@@ -186,5 +186,68 @@ dtoverlay=gpio-poweroff,gpiopin=2,active_low=1
 dtoverlay=gpio-shutdown,gpio_pin=3,active_low=1,gpio_pull=up
 ```
 
+The hardward UART must also be enabled for communication with the control board. At the bottom of `/boot/config.txt`, add
+
+```
+[all]
+enable_uart=1
+```
+
 This can be done when preparing the SD card or on a running RPi. A reboot is necessary for the changes to take affect.
+
+## Monitoring
+
+Assuming a starting point of Raspberry Pi OS (Debian Bullseye), we need to install a few dependencies.
+
+```
+sudo apt-get -y install python3-pip supervisor
+```
+
+Configure supervisor to be run as the "pi" user. Modify the file `/etc/supervisor/supervisord.conf` to add a "chown"
+to the "unix_http_server" section:
+
+
+```
+[unix_http_server]
+file=/var/run/supervisor.sock   ; (the path to the socket file)
+chmod=0700                      ; sockef file mode (default 0700)
+chown=pi:pi                     
+```
+
+Restart supervisor
+
+```
+sudo service supervisor restart
+```
+
+Create an installation directory under `/opt` and install a Python environment into it.
+
+_These instructions assume an installation directory of /opt/tarpn. However, the software can be installed at any location_
+
+```
+sudo mkdir /opt/tarpn
+sudo chown pi:pi /opt/tarpn
+python3 -m virtualenv /opt/tarpn
+```
+
+Install the `tarpn-bbd` program into the newly created Python environment
+
+```
+/opt/tarpn/bin/pip install --upgrade --index-url https://pypi.mumrah.synology.me/simple tarpn-bbd
+```
+
+Copy the default config file
+
+```
+cp /opt/tarpn/config/bbd.ini.sample /opt/tarpn/config/bbd.ini
+vi /opt/tarpn/config/bbd.ini
+```
+
+```
+[default]
+log.dir = /opt/tarpn/logs
+log.config = config/logging.ini
+serial.port = /dev/ttyUSB0
+serial.speed = 9600
+```
 
