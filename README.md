@@ -1,6 +1,6 @@
 # TARPN Battery Backup Deluxe
 
-The Battery Backup Deluxe (BDD) is a system that monitors and switches DC power between a 
+The Battery Backup Deluxe (BBD) is a system that monitors and switches DC power between a 
 power supply and a battery. It is a bespoke power management solution for multi-port packet
 radio nodes in the [TARPN project](http://tarpn.net).
 
