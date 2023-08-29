@@ -177,6 +177,7 @@ following a safe shutdown.
 RXD and TXD are used for serial communication from the control board to the RPi. This is used for exporting
 telemetry from the control board.
 
+## RPi Hardware Configuration
 
 To enable the functions of RPI_SIG and RPI_PWR_INDICATOR, two special configurations are needed on the RPi.
 In the /boot/config.txt file, add the following lines below the comment "# Additional overlays and parameters are documented /boot/overlays/README":
@@ -193,9 +194,10 @@ The hardward UART must also be enabled for communication with the control board.
 enable_uart=1
 ```
 
-This can be done when preparing the SD card or on a running RPi. A reboot is necessary for the changes to take affect.
+This can be done when preparing the SD card or on a running RPi. If done on a running RPi, a reboot is necessary for the 
+changes to take affect.
 
-## Monitoring
+## RPi Software Setup
 
 Assuming a starting point of Raspberry Pi OS (Debian Bullseye), we need to install a few dependencies.
 
@@ -206,7 +208,6 @@ sudo apt-get -y install python3-pip supervisor
 Configure supervisor to be run as the "pi" user. Modify the file `/etc/supervisor/supervisord.conf` to add a "chown"
 to the "unix_http_server" section:
 
-
 ```
 [unix_http_server]
 file=/var/run/supervisor.sock   ; (the path to the socket file)
@@ -215,10 +216,19 @@ chown=pi:pi
 ```
 
 Restart supervisor
-
 ```
 sudo service supervisor restart
 ```
+
+Confirm supervisor is running and accessible
+
+```
+supervisorctl pid
+```
+
+Should return the PID (Process ID) of the supervisord program.
+
+### Install tarpn-bbd Python package
 
 Create an installation directory under `/opt` and install a Python environment into it.
 
@@ -236,18 +246,59 @@ Install the `tarpn-bbd` program into the newly created Python environment
 /opt/tarpn/bin/pip install --upgrade --index-url https://pypi.mumrah.synology.me/simple tarpn-bbd
 ```
 
-Copy the default config file
+This will install the program and create several directories under `/opt/tarpn`. 
+
+### Configure Supervisor to run tarpn-bbd-scrape
+
+Once the tarpn-bbd Python package is installed, we can copy a supervisor config into the system's
+configuration directory. This will allow for the Python program to be automatically run on RPi startup
+and automatically restarted if it encounters a fatal error.
 
 ```
-cp /opt/tarpn/config/bbd.ini.sample /opt/tarpn/config/bbd.ini
-vi /opt/tarpn/config/bbd.ini
+sudo cp /opt/tarpn/extra/tarpn-bbd-scrape-supervisor.conf /etc/supervisor/conf.d/tarpn-bbd-scrape.conf
 ```
+
+This file tells supervisor how to run the tarpn-bbd-scrape program. Issue a "reload" command to tell
+supervisor to read this new config file
+
+```
+supervisorctl reload
+```
+
+Now the scraper program should be running. Run "supervisorctl status" to confirm. The output should look like:
+
+```
+> supervisorctl status
+tarpn-bbd                        RUNNING   pid 1481, uptime 0:05:52
+```
+
+Check that the metrics are being exposed over HTTP. Visit http://localhost:9000 on the RPi, or http://<your-rpi-ip-address>:9000
+from another computer on your network. You should see a plain text output that looks like:
+
+```
+# HELP python_gc_objects_collected_total Objects collected during gc
+# TYPE python_gc_objects_collected_total counter
+python_gc_objects_collected_total{generation="0"} 327.0
+python_gc_objects_collected_total{generation="1"} 81.0
+python_gc_objects_collected_total{generation="2"} 0.0
+```
+
+### Configuration
+
+The default configuration should work on most installations, but if a different serial port or HTTP port is needed, 
+it can be changed in `/opt/tarpn/config/bbd.ini`
 
 ```
 [default]
 log.dir = /opt/tarpn/logs
 log.config = config/logging.ini
-serial.port = /dev/ttyUSB0
-serial.speed = 9600
-```
+serial.port = /dev/ttyS0
+serial.speed = 19200
+prometheus.port = 9000
+``
 
+After re-configuring, restart the service with supervisor
+
+```
+supervisorctl restart tarpn-bbd-scrape
+```
