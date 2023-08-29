@@ -177,6 +177,15 @@ following a safe shutdown.
 RXD and TXD are used for serial communication from the control board to the RPi. This is used for exporting
 telemetry from the control board.
 
+## RPi Hardware Modification
+
+To accommodate the 10 pin ribbon connector on the RPi, pins 11 and 12 must be snipped or bent out of the way.
+
+![IMG_1835](https://github.com/tarpn/tarpn-battery-backup-deluxe/assets/55116/62586ad9-2c98-45f4-abae-aaa8377520b3)
+
+On older TARPN installations, RPi pin 7 will be removed. This pin is unused in this project.
+
+
 ## RPi Hardware Configuration
 
 To enable the functions of RPI_SIG and RPI_PWR_INDICATOR, two special configurations are needed on the RPi.
