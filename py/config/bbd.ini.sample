@@ -3,6 +3,6 @@
 [default]
 log.dir = /opt/tarpn/logs
 log.config = config/logging.ini
-serial.port = /dev/ttyUSB0
+serial.port = /dev/ttyS0
 serial.speed = 19200
-prometheus.port = 8000
+prometheus.port = 9000
