@@ -180,7 +180,8 @@ telemetry from the control board.
 ## RPi Hardware Configuration
 
 To enable the functions of RPI_SIG and RPI_PWR_INDICATOR, two special configurations are needed on the RPi.
-In the /boot/config.txt file, add the following lines below the comment "# Additional overlays and parameters are documented /boot/overlays/README":
+In the `/boot/config.txt` file, add the following lines below the comment 
+`# Additional overlays and parameters are documented /boot/overlays/README`a:
 
 ```
 dtoverlay=gpio-poweroff,gpiopin=2,active_low=1
@@ -269,7 +270,7 @@ Now the scraper program should be running. Run "supervisorctl status" to confirm
 
 ```
 > supervisorctl status
-tarpn-bbd                        RUNNING   pid 1481, uptime 0:05:52
+tarpn-bbd-scrape                     RUNNING   pid 1481, uptime 0:05:52
 ```
 
 Check that the metrics are being exposed over HTTP. Visit http://localhost:9000 on the RPi, or http://<your-rpi-ip-address>:9000
@@ -283,7 +284,7 @@ python_gc_objects_collected_total{generation="1"} 81.0
 python_gc_objects_collected_total{generation="2"} 0.0
 ```
 
-### Configuration
+### Python Configuration
 
 The default configuration should work on most installations, but if a different serial port or HTTP port is needed, 
 it can be changed in `/opt/tarpn/config/bbd.ini`
