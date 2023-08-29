@@ -212,7 +212,7 @@ changes to take affect.
 Assuming a starting point of Raspberry Pi OS (Debian Bullseye), we need to install a few dependencies.
 
 ```
-sudo apt-get -y install python3-pip supervisor
+sudo apt-get -y install python3-pip supervisor prometheus-node-exporter
 ```
 
 Configure supervisor to be run as the "pi" user. Modify the file `/etc/supervisor/supervisord.conf` to add a "chown"
@@ -258,7 +258,7 @@ Install the `tarpn-bbd` program into the newly created Python environment
 
 This will install the program and create several directories under `/opt/tarpn`. 
 
-### Configure Supervisor to run tarpn-bbd-scrape
+### Configure Supervisor
 
 Once the tarpn-bbd Python package is installed, we can copy a supervisor config into the system's
 configuration directory. This will allow for the Python program to be automatically run on RPi startup
@@ -291,6 +291,22 @@ from another computer on your network. You should see a plain text output that l
 python_gc_objects_collected_total{generation="0"} 327.0
 python_gc_objects_collected_total{generation="1"} 81.0
 python_gc_objects_collected_total{generation="2"} 0.0
+```
+
+Next, check that the node metrics are being exposed by the prometheus-node-exporter. Visit http://localhost:9100
+or http://<your-rpi-ip-address>:9100. This will have a lot more output than the other exporter. Here is a snippet
+
+```
+# HELP node_cpu_seconds_total Seconds the CPUs spent in each mode.
+# TYPE node_cpu_seconds_total counter
+node_cpu_seconds_total{cpu="0",mode="idle"} 2883.87
+node_cpu_seconds_total{cpu="0",mode="iowait"} 5.04
+node_cpu_seconds_total{cpu="0",mode="irq"} 0
+node_cpu_seconds_total{cpu="0",mode="nice"} 0
+node_cpu_seconds_total{cpu="0",mode="softirq"} 0.95
+node_cpu_seconds_total{cpu="0",mode="steal"} 0t
+node_cpu_seconds_total{cpu="0",mode="system"} 11.35
+node_cpu_seconds_total{cpu="0",mode="user"} 22.08
 ```
 
 ### Python Configuration
