@@ -190,7 +190,7 @@ On older TARPN installations, RPi pin 7 will have been removed. This pin is unus
 
 To enable the functions of RPI_SIG and RPI_PWR_INDICATOR, two special configurations are needed on the RPi.
 In the `/boot/config.txt` file, add the following lines below the comment 
-`# Additional overlays and parameters are documented /boot/overlays/README`a:
+`# Additional overlays and parameters are documented /boot/overlays/README`:
 
 ```
 dtoverlay=gpio-poweroff,gpiopin=2,active_low=1
