@@ -369,7 +369,8 @@ Click on Status, then Targets
 
 And the three Targets should be in the "UP" State.
 
-<img width="960" alt="image" src="https://github.com/tarpn/tarpn-battery-backup-deluxe/assets/55116/68608e71-a428-482b-990d-0b1c451dce04">
+<img width="960" alt="image" src="https://github.com/tarpn/tarpn-battery-backup-deluxe/assets/55116/1a08ab31-84a5-4ec7-ade9-8fe8cefcb366">
+
 
 
 
