@@ -12,7 +12,7 @@ setup(
     packages=find_packages(),
     data_files=[
         ("config", ["config/bbd.ini.sample", "config/logging.ini"]),
-        ("extra", ["extra/tarpn-bbd-supervisor.conf"]),
+        ("extra", ["extra/tarpn-bbd-scrape-supervisor.conf"]),
         ("logs", ["extra/.empty.txt"])
     ],
     url='https://github.com/tarpn/tarpn-battery-backup-deluxe',
