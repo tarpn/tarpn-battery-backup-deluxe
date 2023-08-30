@@ -380,3 +380,35 @@ Follow the instructions to [install Grafana OSS](https://grafana.com/tutorials/i
 Grafana can run on the TARPN RPi or on a separate server (RPi or otherwise).
 
 For other installation types, follow the [general installation instructions](https://grafana.com/docs/grafana/latest/setup-grafana/installation/).
+
+Copy some configuration files from the `tarpn-bbd` installation over to Grafana
+
+```
+sudo cp /opt/tarpn/extra/grafana.ini /etc/grafana/grafana.ini
+sudo cp /opt/tarpn/extra/prometheus-datasource.yml /etc/grafana/provisioning/datasources/prometheus.yml
+```
+
+Enable Grafana service (as indicated the Grafana installation output). This will enable Grafana to start
+when the RPi starts.
+
+```
+sudo /bin/systemctl daemon-reload
+sudo /bin/systemctl enable grafana-server
+```
+
+Start Grafana (restart if it's already running)
+```
+sudo service grafana restart
+```
+
+Access the Grafana UI at http://localhost:3000 or http://<your-rpi-ip-address>:3000. 
+
+<img width="1256" alt="image" src="https://github.com/tarpn/tarpn-battery-backup-deluxe/assets/55116/ad20f8eb-2b7a-4dbf-ae33-4c774eda3bcd">
+
+Confirm the "prometheus" datasource was created
+
+
+https://github.com/tarpn/tarpn-battery-backup-deluxe/assets/55116/4cb37a2d-a11b-4c16-b97d-481c0bf3d614
+
+
+
