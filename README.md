@@ -142,10 +142,6 @@ temperature is detected, the switches are both opened to prevent the mosfets fro
 
 TODO
 
-# Monitoring
-
-TODO
-
 # RaspberryPi Interface
 
 J8 on the control board connects to pins 1 through 10 on the RaspberryPi. 
@@ -321,10 +317,64 @@ log.config = config/logging.ini
 serial.port = /dev/ttyS0
 serial.speed = 19200
 prometheus.port = 9000
-``
+```
 
 After re-configuring, restart the service with supervisor
 
 ```
 supervisorctl restart tarpn-bbd-scrape
 ```
+
+# Monitoring
+
+If desired, a metrics collection database (Prometheus) and dashboard system (Grafana) can be used to visualize
+the sensor data exported by the control board.
+
+Prometheus needs network access to the RPi running `tarpn-bbd`, and Grafana needs network access to Prometheus.
+On a home network, this is usually achieved without any extra effort. It is possible to run the TARPN stack 
+(including `tarpn-bbd`) along with Prometheus and Grafana, but it is also possible to run Prometheus and Grafana
+on a separate server if resources of the RPi become constained.
+
+## Prometheus
+
+Prometheus is an efficient time-series database that is optimized for metrics collection. It can be installed on the 
+TARPN RPi with 
+
+```
+sudo apt-get install -y prometheus
+```
+
+Prometheus can also be installed on another server (RPi or otherwise). Follow the 
+[general installation instructions](https://prometheus.io/docs/prometheus/latest/installation/) for this.
+
+Put the prometheus config in place
+
+```
+sudo cp /opt/tarpn/extra/prometheus.yml /etc/prometheus/prometheus.yml
+```
+
+And restart prometheus
+
+```
+sudo service prometheus restart
+```
+
+Launch the Prometheus UI and confirm the three targets are "UP". Load the UI by accessing http://localhost:9090 
+on a web browser on the RPi, or http://<your-rpi-ip-address>:9090 from a web browser on another computer in your
+network.
+
+Click on Status, then Targets
+
+<img width="960" alt="image" src="https://github.com/tarpn/tarpn-battery-backup-deluxe/assets/55116/9cc0acac-e0d7-4f8c-9001-9213153b9122">
+
+And the three Targets should be in the "UP" State.
+
+<img width="960" alt="image" src="https://github.com/tarpn/tarpn-battery-backup-deluxe/assets/55116/bdf54939-66ed-4f04-aff0-17154610954b">
+
+
+## Grafana
+
+Follow the instructions to [install Grafana OSS](https://grafana.com/tutorials/install-grafana-on-raspberry-pi/#install-grafana).
+Grafana can run on the TARPN RPi or on a separate server (RPi or otherwise).
+
+For other installation types, follow the [general installation instructions](https://grafana.com/docs/grafana/latest/setup-grafana/installation/).
