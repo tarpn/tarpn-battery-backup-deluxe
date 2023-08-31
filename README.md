@@ -410,5 +410,17 @@ Confirm the "prometheus" datasource was created
 
 https://github.com/tarpn/tarpn-battery-backup-deluxe/assets/55116/4cb37a2d-a11b-4c16-b97d-481c0bf3d614
 
+Next, import the dashboard
+
+* Open https://github.com/tarpn/tarpn-battery-backup-deluxe/blob/main/py/extra/grafana-dashboard.json
+* Click "Download Raw File"
+* Open Grafana UI
+* Navigate to Dashboards
+* Click New -> Import
+* Select the dashboard JSON file
+* Select the "Prometheus" datasource we looked at earlier
+
+https://github.com/tarpn/tarpn-battery-backup-deluxe/assets/55116/16305afa-259e-4ca9-8b7f-3a017b2bc0ff
+
 
 
