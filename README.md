@@ -69,6 +69,12 @@ All connected supplies and loads share a common ground. This ground is also shar
 If a RaspberryPi (or other device) is monitoring the serial output of the control board, it must also share
 this common ground.
 
+Test Points (v5):
+* TP1: Temperature sense voltage
+* TP2: Battery sense voltage
+* TP3: Supply sense voltage
+* TP4: Load current sense voltage 
+
 
 Control board layout
 
