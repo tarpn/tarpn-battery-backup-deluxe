@@ -32,6 +32,9 @@ rpi_on = Gauge("rpi_on", "RaspberryPi On")
 serial_lines = Counter("serial_lines", "Number of serial lines read since start")
 serial_errors = Counter("serial_errors", "Number of serial errors since start")
 
+def get_or_zero(data, key):
+    return max(data.get(key, 0.0), 0.0)
+
 def parse_line(line):
     logger.debug(line)
     serial_lines.inc()
@@ -42,13 +45,13 @@ def parse_line(line):
         kv = tok.split("=", 1)
         data[kv[0]] = float(kv[1])
     state_enum.state(state)
-    battery_volts.set(data.get("Battery"))
-    supply_volts.set(data.get("Supply"))
-    load_amps.set(data.get("AmpAvg", 0.0))
-    load_amp_hour.set(data.get("AH", 0.0))
+    battery_volts.set(get_or_zero(data, "Battery"))
+    supply_volts.set(get_or_zero(data, "Supply"))
+    load_amps.set(get_or_zero(data, "AmpAvg"))
+    load_amp_hour.set(get_or_zero(data, "AH"))
     temp.set(data.get("Temperature"))
     rpi_on.set(data.get("RPiOn", 0))
-    load_amp_sec.set(data.get("AmpSecDelta", 0))
+    load_amp_sec.set(get_or_zero(data, "AmpSecDelta"))
   
 
 def main():
