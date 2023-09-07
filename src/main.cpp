@@ -1147,7 +1147,7 @@ void serial_print(long now) {
  ******************/
 
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(115200);
   
   EEPROM.begin();
   // Initialize EEPROM
@@ -1187,6 +1187,7 @@ void setup() {
   Serial.flush();
   Serial.println("Start");
 
+  display.setRotation(2);
   display.clearDisplay();
   display.setTextColor(SSD1306_WHITE);
   display.setCursor(0, 0);
