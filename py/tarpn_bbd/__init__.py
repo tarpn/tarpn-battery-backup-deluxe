@@ -24,9 +24,9 @@ state_enum = Enum("board_state", "The internal state of the board", states=["Nul
 
 battery_volts = Gauge("battery_volts", "Battery voltage")
 supply_volts = Gauge("supply_volts", "Power Supply voltage")
-load_amps = Gauge("load_amps", "Load current")
-load_amp_hour = Gauge("load_ah", "Total load amp-hours")
-load_amp_sec = Gauge("load_amp_sec", "Delta amp-seconds")
+load_amps = Gauge("load_amps", "Average load current")
+load_amp_sec = Counter("load_amp_sec", "Total amp-seconds")
+load_power = Gauge("load_watt", "Average load power")
 temp = Gauge("temperature_celcius", "Board temperature")
 rpi_on = Gauge("rpi_on", "RaspberryPi On")
 serial_lines = Counter("serial_lines", "Number of serial lines read since start")
@@ -48,10 +48,10 @@ def parse_line(line):
     battery_volts.set(get_or_zero(data, "Battery"))
     supply_volts.set(get_or_zero(data, "Supply"))
     load_amps.set(get_or_zero(data, "AmpAvg"))
-    load_amp_hour.set(get_or_zero(data, "AH"))
+    load_power.set(get_or_zero(data, "PowerAvg"))
     temp.set(data.get("Temperature"))
     rpi_on.set(data.get("RPiOn", 0))
-    load_amp_sec.set(get_or_zero(data, "AmpSecDelta"))
+    load_amp_sec.inc(get_or_zero(data, "AmpSecDelta"))
   
 
 def main():
