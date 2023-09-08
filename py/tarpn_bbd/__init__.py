@@ -31,6 +31,7 @@ temp = Gauge("temperature_celcius", "Board temperature")
 rpi_on = Gauge("rpi_on", "RaspberryPi On")
 serial_lines = Counter("serial_lines", "Number of serial lines read since start")
 serial_errors = Counter("serial_errors", "Number of serial errors since start")
+uptime = Counter("board_uptime_msec", "Number of milliseconds of uptime")
 
 def get_or_zero(data, key):
     return max(data.get(key, 0.0), 0.0)
@@ -52,6 +53,9 @@ def parse_line(line):
     temp.set(data.get("Temperature"))
     rpi_on.set(data.get("RPiOn", 0))
     load_amp_sec.inc(get_or_zero(data, "AmpSecDelta"))
+    t = data.get("Uptime")
+    if t is not None:
+        uptime._value.set(t)
   
 
 def main():
