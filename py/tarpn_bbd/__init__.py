@@ -53,7 +53,7 @@ def parse_line(line):
     temp.set(data.get("Temperature"))
     rpi_on.set(data.get("RPiOn", 0))
     load_amp_sec.inc(get_or_zero(data, "AmpSecDelta"))
-    t = data.get("Uptime")
+    t = data.get("UpTime")
     if t is not None:
         uptime._value.set(t)
   
