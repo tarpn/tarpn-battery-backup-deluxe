@@ -96,8 +96,8 @@ These are mainly used as high precision voltage divider for accurate sensing of 
 The remaining resistors on the power board are pull-ups, pull-downs, and current limiting resistors. These are 5% precision
 resistors.
 
-1 kOhm: R15, R17, R24, R27
-10 kOhm: R16, R21, R25, R28, R29, R30
+* 1 kOhm: R15, R17, R24, R27
+* 10 kOhm: R16, R21, R25, R28, R29, R30
 
 ## Diodes
 

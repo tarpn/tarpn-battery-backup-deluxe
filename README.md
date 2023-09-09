@@ -69,6 +69,12 @@ All connected supplies and loads share a common ground. This ground is also shar
 If a RaspberryPi (or other device) is monitoring the serial output of the control board, it must also share
 this common ground.
 
+Test Points (v5):
+* TP1: Temperature sense voltage
+* TP2: Battery sense voltage
+* TP3: Supply sense voltage
+* TP4: Load current sense voltage 
+
 
 Control board layout
 
@@ -409,6 +415,18 @@ Confirm the "prometheus" datasource was created
 
 
 https://github.com/tarpn/tarpn-battery-backup-deluxe/assets/55116/4cb37a2d-a11b-4c16-b97d-481c0bf3d614
+
+Next, import the dashboard
+
+* Open https://github.com/tarpn/tarpn-battery-backup-deluxe/blob/main/py/extra/grafana-dashboard.json
+* Click "Download Raw File"
+* Open Grafana UI
+* Navigate to Dashboards
+* Click New -> Import
+* Select the dashboard JSON file
+* Select the "Prometheus" datasource we looked at earlier
+
+https://github.com/tarpn/tarpn-battery-backup-deluxe/assets/55116/16305afa-259e-4ca9-8b7f-3a017b2bc0ff
 
 
 
