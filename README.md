@@ -1,6 +1,8 @@
 # TARPN Battery Backup Deluxe
 
-A DC-DC Uninterrupted Power Supply for TARPN.
+A DC-DC Uninterrupted Power Supply for TARPN. 
+
+📖 Click here for [Operation Manual](https://github.com/tarpn/tarpn-battery-backup-deluxe/wiki/Operation-Manual) 📖
 
 Battery Backup Deluxe (BBD) is a system that monitors and switches DC power between a 
 power supply and a battery. It is a bespoke power management solution for multi-port packet
@@ -27,50 +29,6 @@ Two custom PCBs are employed for voltage sensing, switching, and control. The tw
 referred to as the Power Board and the Control Board. The Power Board connects to a regulated
 DC power supply, a 12V battery, a 12V load, a DC buck regulator for a RaspberryPi, and the Control Board. 
 The Control Board connects to a RaspberryPi using a communication cable. 
-
-# 1. Installation
-
-## 1.1 Mounting
-
-Since we are dealing with large capacity DC and heavy gauge wire, it is recommended to mount the two boards
-before attaching the wiring. The Power board can be mounted horizontally or vertically. If mounting vertically,
-it should be oriented with the terminal lugs facing down. This reduces the change of an arc or fire hazard if 
-you or a cat drops a tool on the lugs.
-
-TODO picture of mounted power boards.
-
-Mount the control board some place convenient for the operator.
-
-## 1.2 I/O Connections
-
-1) Connect the Power Board to Control Board using a 12-pin ribbon connector.
-2) Connect the Control Board to the RPi using a 10-pin ribbon connector.
-
-## 1.2 Power Connections
-
-For a typical multi-port TARPN node, 10 AWG stranded wire is recommended. Stranded wire is more flexible and easier 
-to work with. It is also what is recommended by the lug manufacturer. The stranded wire can be used directly or
-with wire ferrules. Ferrules make things a bit easier to work with and give the wiring a nice finished look.
-
-The lugs should be torqued to 20 in-lb (2.26 N-m) which is approximately half-way between _"good and tight"_ and
-_"that ain't goin' nowhere"_. Give them a good pull after tightening to make sure they don't move.
-
-The sequencing of power connections should be:
-
-1) Connect the loads to "Load +" and "Load -".
-2) Connect the PSU, while powered off, to "Supply +" and "Supply -".
-3) Connect the 12V regulator (e.g., DROK) to "12V RPi +/-".
-
-At this point, nothing will be powered on. The load terminals and 12V RPi terminals should have roughly 0V.
-The next step will energize the system.
-
-4) Connect the battery to "Battery +" and "Battery -". There may be a small spark ⚡ as a result of inrush current.
-
-
-Once the battery is connected, the whole system will power up. The RPi will be powered on through the 
-offboard 12V regulator and the loads will be powered on.
-
-⚠️ If the battery is disconnected abruptly, the whole system will immediately lose power. This can corrupt the RPi SD card. ⚠️
 
 
 # Images
