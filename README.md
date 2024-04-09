@@ -1,6 +1,6 @@
 # TARPN Battery Backup Deluxe
 
-A DC-DC Uninterrupted Power Supply for TARPN. 
+An open source DC-DC Uninterrupted Power Supply for TARPN. 
 
 📖 Click here for [Operation Manual](https://github.com/tarpn/tarpn-battery-backup-deluxe/wiki/Operation-Manual) 📖
 
